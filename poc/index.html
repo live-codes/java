@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Browser JVM PoC — engine benchmarks</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 900px; line-height: 1.5; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; font-size: 0.9rem; }
+      pre { margin: 0.3rem 0 0; white-space: pre-wrap; background: #f6f6f6; padding: 0.4rem; }
+      pre.err { background: #fde8e8; }
+      tr.ok td:first-child { border-left: 4px solid #2a9d3f; }
+      tr.fail td:first-child { border-left: 4px solid #d33; }
+      li { margin: 0.4rem 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Browser JVM PoC — engine benchmarks for LiveCodes Java/Kotlin/Scala</h1>
+    <p>
+      Decision gate per <code>~/.commandcode/plans/browser-jvm-toolchain.md</code>: pick the engine per language.
+      Open each page and let it finish, then collect via “Copy JSON results”.
+    </p>
+    <ul>
+      <li><a href="./baseline.html">baseline</a> — current LiveCodes engine (<code>@seth0x41/doppio@1.0.0</code>, Java 8) — control.</li>
+      <li><a href="./doppio-modern.html">doppio-modern</a> — <code>seo-rii/doppio</code> <code>modern</code> branch (Java + Kotlin 2.4 + Scala 2.13).</li>
+      <li><a href="./teavm.html">teavm</a> — <code>teavm-javac</code> (in-browser javac + TeaVM → WebAssembly, Java only).</li>
+    </ul>
+    <h2>Known artifact sizes</h2>
+    <table>
+      <tr><th>Engine</th><th>Asset</th><th>Size</th></tr>
+      <tr><td>doppio-modern</td><td>doppio.js + browserfs</td><td>0.9 MB</td></tr>
+      <tr><td>doppio-modern</td><td>rt.jar / tools.jar (JDK 8)</td><td>61.7 / 17.4 MB</td></tr>
+      <tr><td>doppio-modern</td><td>kotlin-compiler.jar / kotlin-stdlib.jar</td><td>59.0 / 1.8 MB</td></tr>
+      <tr><td>doppio-modern</td><td>scala-compiler / -library / -reflect (2.13.18)</td><td>11.8 / 5.7 / 3.6 MB</td></tr>
+      <tr><td>teavm</td><td>compiler.wasm + classlibs + glue</td><td>6.4 MB total</td></tr>
+      <tr><td>baseline</td><td>rt.jar / tools.jar (<code>@seth0x41/doppio</code>)</td><td>JDK 8 (see page)</td></tr>
+    </table>
+  </body>
+</html>

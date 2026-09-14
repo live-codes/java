@@ -1,0 +1,21 @@
+{
+  "name": "@live-codes/browser-jvm",
+  "version": "0.0.1",
+  "description": "Client-side JVM toolchain for LiveCodes: Java, Kotlin and Scala in the browser (TeaVM + Doppio-modern engines).",
+  "type": "module",
+  "license": "MIT",
+  "main": "dist/browser-jvm.iife.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "serve": "node scripts/serve.mjs",
+    "vendor:teavm": "node scripts/fetch-teavm.mjs",
+    "prebuild": "node scripts/fetch-teavm.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  }
+}

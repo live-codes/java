@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PoC — baseline (@seth0x41/doppio@1.0.0, Java 8)</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="./bench.js"></script>
+    <script>
+      Bench.runSuite(
+        {
+          engine: 'baseline-doppio-1.0.0',
+          title: 'Baseline — current LiveCodes engine (DoppioJVM 1.0.0, Java 8)',
+          notes:
+            'Control. Mirrors <code>lang-java-script.ts</code>: eager jar fetch (doppio/rt/tools/jce/charsets/currency) into InMemory FS, compile via <code>com.sun.tools.javac.Main</code> (JDK 8), run on Doppio.',
+          worker: 'baseline-worker.js (classic, importScripts from unpkg/jsdelivr)',
+          programs: [].concat(Bench.PROGRAMS.java, Bench.PROGRAMS.kotlin, Bench.PROGRAMS.scala),
+        },
+        {
+          async init() {
+            const worker = new Worker('./baseline-worker.js');
+            const init = await new Promise((resolve, reject) => {
+              worker.onerror = (e) => reject(new Error('worker error: ' + e.message));
+              worker.onmessage = (e) => {
+                if (e.data.type === 'initialized') resolve(e.data);
+              };
+              worker.postMessage({ cmd: 'init' });
+            });
+            return { worker, init };
+          },
+          async run(handle, program) {
+            return await new Promise((resolve, reject) => {
+              handle.worker.onmessage = (e) => {
+                if (e.data.type === 'result') {
+                  if (e.data.ok === false && e.data.error) e.data.stderr = (e.data.stderr || '') + e.data.error;
+                  resolve({ ...e.data, bytes: 0, internalMs: parseInternal(e.data.stdout) });
+                }
+              };
+              handle.worker.onerror = (e) => reject(new Error('worker error: ' + e.message));
+              handle.worker.postMessage({ cmd: 'run', source: program.source, input: program.input || '' });
+            });
+          },
+        }
+      );
+
+      function parseInternal(stdout) {
+        const m = /internalMs=(\d+)/.exec(stdout || '');
+        return m ? Number(m[1]) : null;
+      }
+    </script>
+  </body>
+</html>

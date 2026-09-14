@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Smoke — @live-codes/browser-jvm dist bundle</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 900px; }
+      .case { border: 1px solid #ccc; padding: 0.6rem; margin: 0.6rem 0; }
+      .pass { border-left: 4px solid #2a9d3f; }
+      .fail { border-left: 4px solid #d33; }
+      pre { background: #f6f6f6; padding: 0.4rem; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>Smoke — dist/browser-jvm.iife.js</h1>
+    <div id="out"></div>
+    <script src="/dist/browser-jvm.iife.js"></script>
+    <script>
+      const out = document.querySelector('#out');
+      const addCase = (name, pass, detail) => {
+        const el = document.createElement('div');
+        el.className = 'case ' + (pass ? 'pass' : 'fail');
+        el.innerHTML = `<b>${name}</b>: ${pass ? 'PASS' : 'FAIL'}<pre></pre>`;
+        el.querySelector('pre').textContent = detail || '';
+        out.appendChild(el);
+        el.dataset.pass = String(pass);
+      };
+      window.smokeDone = false;
+
+      const HELLO = `public class Main {
+  public static void main(String[] args) {
+    System.out.println("Hello from Java");
+  }
+}`;
+      const FEATURES = `import java.util.stream.Stream;
+
+public class Main {
+  record Point(int x, int y) {}
+  public static void main(String[] args) {
+    var points = Stream.of(new Point(1, 2), new Point(3, 4)).map(p -> new Point(p.x() * 10, p.y() * 10)).toList();
+    System.out.println(points);
+  }
+}`;
+
+      (async () => {
+        // TeaVM engine
+        try {
+          const t0 = performance.now();
+          const teavm = await BrowserJvm.createRuntime({ engine: 'teavm', language: 'java', baseUrl: '/dist/' });
+          const r1 = await teavm.run(HELLO);
+          addCase('teavm java hello', r1.exitCode === 0 && r1.output.includes('Hello from Java'),
+            `init+run ${Math.round(performance.now() - t0)}ms\n${r1.output}`);
+          const r2 = await teavm.run(FEATURES);
+          addCase('teavm modern java', r2.exitCode === 0 && r2.output.includes('Point[x=10, y=20]'), r2.output);
+          teavm.destroy();
+        } catch (e) {
+          addCase('teavm engine', false, String(e && e.stack || e));
+        }
+
+        // Doppio engine (lazy jar fetch makes the first run slow — one program only)
+        try {
+          const t1 = performance.now();
+          const doppio = await BrowserJvm.createRuntime({ engine: 'doppio', language: 'java' });
+          const r3 = await doppio.run(HELLO);
+          addCase('doppio java hello', r3.exitCode === 0 && r3.output.includes('Hello from Java'),
+            `init+run ${Math.round(performance.now() - t1)}ms\n${r3.output}`);
+          doppio.destroy();
+        } catch (e) {
+          addCase('doppio engine', false, String(e && e.stack || e));
+        }
+        window.smokeDone = true;
+      })();
+    </script>
+  </body>
+</html>

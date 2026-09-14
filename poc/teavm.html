@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PoC — teavm-javac (in-browser javac + TeaVM → WebAssembly)</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="./bench.js"></script>
+    <script>
+      Bench.runSuite(
+        {
+          engine: 'teavm-javac',
+          title: 'TeaVM — <code>teavm-javac</code>: OpenJDK javac + TeaVM AOT in one wasm module',
+          notes:
+            'Local vendored artifacts (<code>/vendor/teavm/</code>, 6.4 MB total). javac compiles Java source → class files; TeaVM generates an app wasm; app runs via <code>load(bytes) → exports.main()</code>. Known gap: no stdin.',
+          worker: 'teavm-worker.mjs (module worker)',
+          programs: Bench.PROGRAMS.java.concat(Bench.PROGRAMS.kotlin, Bench.PROGRAMS.scala),
+        },
+        {
+          async init() {
+            const worker = new Worker('./teavm-worker.mjs', { type: 'module' });
+            const init = await new Promise((resolve, reject) => {
+              worker.onerror = (e) => reject(new Error('worker error: ' + e.message));
+              worker.onmessage = (e) => {
+                if (e.data.type === 'initialized') resolve(e.data);
+                if (e.data.type === 'init-error') reject(new Error(e.data.error));
+              };
+              worker.postMessage({ cmd: 'init' });
+            });
+            return { worker, init };
+          },
+          async run(handle, program) {
+            return await new Promise((resolve, reject) => {
+              handle.worker.onmessage = (e) => {
+                const d = e.data;
+                if (d.type === 'result') {
+                  if (d.ok === false) {
+                    const diags = (d.diagnostics || [])
+                      .filter((x) => x.severity === 'error')
+                      .slice(0, 3)
+                      .map((x) => `${x.fileName}:${x.lineNumber || '?'} ${x.message}`)
+                      .join('\n');
+                    d.stderr = ((d.stderr || '') + '\n' + (d.error || '') + (diags ? '\n' + diags : '')).trim();
+                  }
+                  resolve({ ...d, bytes: d.bytes ? d.bytes.byteLength : null, internalMs: parseInternal(d.stdout) });
+                }
+              };
+              handle.worker.onerror = (e) => reject(new Error('worker error: ' + e.message));
+              handle.worker.postMessage({ cmd: 'run', source: program.source, mainClass: program.mainClass, input: program.input || '' });
+            });
+          },
+        }
+      );
+
+      function parseInternal(stdout) {
+        const m = /internalMs=(\d+)/.exec(stdout || '');
+        return m ? Number(m[1]) : null;
+      }
+    </script>
+  </body>
+</html>

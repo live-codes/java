@@ -1,7 +1,7 @@
 {
   "teavm": {
     "engine": "java-wasm",
-    "initMs": 1164,
+    "initMs": 382,
     "results": [
       {
         "id": "hello",
@@ -10,10 +10,10 @@
         "stdout": "Hello, world\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 3390,
-        "compileMs": 187,
-        "generateMs": 3101,
-        "runMs": 2
+        "wallMs": 761,
+        "compileMs": 68,
+        "generateMs": 668,
+        "runMs": 0
       },
       {
         "id": "primitives",
@@ -22,10 +22,10 @@
         "stdout": "overflow=-2147483648\nlong=9007199254740993\ndouble=0.3333333333333333\nchar=65 cast=44\nbool=true not=false\nshift=-2147483648 -4 2147483644\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2477,
-        "compileMs": 86,
-        "generateMs": 2368,
-        "runMs": 6
+        "wallMs": 1645,
+        "compileMs": 18,
+        "generateMs": 1615,
+        "runMs": 2
       },
       {
         "id": "strings",
@@ -34,10 +34,10 @@
         "stdout": "12 world 7\nHELLO, WORLD Hello, java\n4 a-b--c\npad|ababab\ntrue true e\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 5117,
-        "compileMs": 45,
-        "generateMs": 5022,
-        "runMs": 19
+        "wallMs": 4289,
+        "compileMs": 21,
+        "generateMs": 4231,
+        "runMs": 14
       },
       {
         "id": "stringbuilder",
@@ -46,9 +46,9 @@
         "stdout": ",9,8,7,6,5,4,3,2,1,0\naXc\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1924,
-        "compileMs": 50,
-        "generateMs": 1849,
+        "wallMs": 1215,
+        "compileMs": 46,
+        "generateMs": 1152,
         "runMs": 2
       },
       {
@@ -58,7 +58,7 @@
         "stdout": "",
         "error": "dereferencing a null pointer\nRuntimeError: dereferencing a null pointer\n    at java.text.DecimalFormat::forDigit (wasm://wasm/001ae08a:wasm-function[59]:0x1469e)\n    at java.text.DecimalFormat::formatRegular_0 (wasm://wasm/001ae08a:wasm-function[219]:0x18795)\n    at java.text.DecimalFormat::format_1 (wasm://wasm/001ae08a:wasm-function[561]:0x2173f)\n    at java.text.DecimalFormat::format@caller_1 (wasm://wasm/001ae08a:wasm-function[562]:0x217f4)\n    at java.text.NumberFormat::format (wasm://wasm/001ae08a:wasm-function[661]:0x232cd)\n    at java.text.DecimalFormat::format (wasm://wasm/001ae08a:wasm-function[557]:0x21631)\n    at java.text.DecimalFormat::format@caller (wasm://wasm/001ae08a:wasm-function[558]:0x21656)\n    at java.text.Format::format (wasm://wasm/001ae08a:wasm-function[513]:0x1ea31)\n    at java.util.Formatter$FormatWriter::formatFloat (wasm://wasm/001ae08a:wasm-function[501]:0x1e569)\n    at java.util.Formatter$FormatWriter::formatValue (wasm://wasm/001ae08a:wasm-function[495]:0x1e050)",
         "exitCode": 1,
-        "wallMs": 3980,
+        "wallMs": 3748,
         "compileMs": -1,
         "generateMs": -1,
         "runMs": -1
@@ -70,9 +70,9 @@
         "stdout": "[1, 3, 5, 9]\n2\n[1, 3, 5, 9, 7, 7] sum=32\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1968,
-        "compileMs": 82,
-        "generateMs": 1843,
+        "wallMs": 1649,
+        "compileMs": 93,
+        "generateMs": 1548,
         "runMs": 3
       },
       {
@@ -82,10 +82,10 @@
         "stdout": "[0, 1, 2]\n[3, 4, 5]\n[6, 7, 8]\ndeep=[[0, 1, 2], [3, 4, 5], [6, 7, 8]]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2151,
-        "compileMs": 49,
-        "generateMs": 2065,
-        "runMs": 3
+        "wallMs": 1517,
+        "compileMs": 35,
+        "generateMs": 1457,
+        "runMs": 7
       },
       {
         "id": "boxing",
@@ -94,9 +94,9 @@
         "stdout": "true true false\n43 -7 1010\n2147483647 -9223372036854775808 true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1803,
-        "compileMs": 67,
-        "generateMs": 1728,
+        "wallMs": 1433,
+        "compileMs": 49,
+        "generateMs": 1372,
         "runMs": 3
       },
       {
@@ -106,10 +106,10 @@
         "stdout": "7 4 1024\n3 2.0 12.0\n1.01\n0.3\n246913578024691357802469135780\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2616,
-        "compileMs": 42,
-        "generateMs": 2525,
-        "runMs": 9
+        "wallMs": 1803,
+        "compileMs": 35,
+        "generateMs": 1758,
+        "runMs": 6
       },
       {
         "id": "chars",
@@ -118,22 +118,22 @@
         "stdout": "true true A\n4 233 233\n1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1862,
-        "compileMs": 32,
-        "generateMs": 1811,
-        "runMs": 9
+        "wallMs": 1414,
+        "compileMs": 22,
+        "generateMs": 1381,
+        "runMs": 8
       },
       {
         "id": "inheritance",
         "area": "oop",
-        "ok": false,
-        "stdout": "",
-        "error": "Main.java:3: cannot find symbol\n  symbol:   method getClass()\n  location: class Shape",
-        "exitCode": 1,
-        "wallMs": 41,
-        "compileMs": 40,
-        "generateMs": -1,
-        "runMs": -1
+        "ok": true,
+        "stdout": "Square:9.0\nCircle:12.57\ntrue\n",
+        "error": "",
+        "exitCode": 0,
+        "wallMs": 1381,
+        "compileMs": 30,
+        "generateMs": 1336,
+        "runMs": 9
       },
       {
         "id": "interfaces",
@@ -142,10 +142,10 @@
         "stdout": "hello world\nHELLO SCALA\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1962,
-        "compileMs": 69,
-        "generateMs": 1883,
-        "runMs": 3
+        "wallMs": 1350,
+        "compileMs": 62,
+        "generateMs": 1281,
+        "runMs": 2
       },
       {
         "id": "inner-classes",
@@ -154,10 +154,10 @@
         "stdout": "10 1\nanon\n5\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1596,
-        "compileMs": 48,
-        "generateMs": 1540,
-        "runMs": 2
+        "wallMs": 1119,
+        "compileMs": 36,
+        "generateMs": 1078,
+        "runMs": 1
       },
       {
         "id": "enums",
@@ -166,10 +166,10 @@
         "stdout": "MERCURY ordinal=0 density=5\nEARTH ordinal=1 density=5\nhome\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1704,
-        "compileMs": 70,
-        "generateMs": 1613,
-        "runMs": 6
+        "wallMs": 1154,
+        "compileMs": 33,
+        "generateMs": 1114,
+        "runMs": 3
       },
       {
         "id": "varargs-recursion",
@@ -178,10 +178,10 @@
         "stdout": "6 9 0\nfib=6765\nstring x\nobject x\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1521,
-        "compileMs": 74,
-        "generateMs": 1428,
-        "runMs": 4
+        "wallMs": 1177,
+        "compileMs": 46,
+        "generateMs": 1112,
+        "runMs": 2
       },
       {
         "id": "list",
@@ -190,22 +190,22 @@
         "stdout": "[a, b, c, d] size=4\n[a, c, d] sub=[a, c]\n[a, d] contains=true idx=1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2196,
-        "compileMs": 82,
-        "generateMs": 2081,
+        "wallMs": 1409,
+        "compileMs": 85,
+        "generateMs": 1311,
         "runMs": 6
       },
       {
         "id": "map",
         "area": "collections",
-        "ok": false,
-        "stdout": "",
-        "error": "Main.java:12: cannot find symbol\n  symbol:   class Entry\n  location: interface java.util.Map",
-        "exitCode": 1,
-        "wallMs": 71,
-        "compileMs": 70,
-        "generateMs": -1,
-        "runMs": -1
+        "ok": true,
+        "stdout": "11 -1 size=3\na=11\nb=2\nc=3\n[a, b, c] [11, 2, 3] true\n",
+        "error": "",
+        "exitCode": 0,
+        "wallMs": 1344,
+        "compileMs": 47,
+        "generateMs": 1287,
+        "runMs": 5
       },
       {
         "id": "set",
@@ -214,22 +214,22 @@
         "stdout": "3 true\n[1, 2, 3]\n[1, 2, 3]\n[2, 3]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2570,
-        "compileMs": 81,
-        "generateMs": 2474,
-        "runMs": 8
+        "wallMs": 1532,
+        "compileMs": 44,
+        "generateMs": 1477,
+        "runMs": 6
       },
       {
         "id": "generics",
         "area": "collections",
-        "ok": false,
-        "stdout": "",
-        "error": "Main.java:25: cannot find symbol\n  symbol:   method getClass()\n  location: class java.lang.String",
-        "exitCode": 1,
-        "wallMs": 80,
-        "compileMs": 80,
-        "generateMs": -1,
-        "runMs": -1
+        "ok": true,
+        "stdout": "true\n6.5\n[9]\nString\n",
+        "error": "",
+        "exitCode": 0,
+        "wallMs": 1408,
+        "compileMs": 48,
+        "generateMs": 1353,
+        "runMs": 4
       },
       {
         "id": "comparator",
@@ -238,10 +238,10 @@
         "stdout": "[bob(25), ann(30), cy(30)]\n[ann(30), bob(25), cy(30)]\n[ann(30), cy(30), bob(25)]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2939,
-        "compileMs": 124,
-        "generateMs": 2801,
-        "runMs": 5
+        "wallMs": 1417,
+        "compileMs": 59,
+        "generateMs": 1338,
+        "runMs": 8
       },
       {
         "id": "lambda",
@@ -250,10 +250,10 @@
         "stdout": "42 5 supplied\n[ANN, BOB]\n21\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2477,
-        "compileMs": 73,
-        "generateMs": 2283,
-        "runMs": 72
+        "wallMs": 1432,
+        "compileMs": 85,
+        "generateMs": 1332,
+        "runMs": 4
       },
       {
         "id": "streams",
@@ -262,10 +262,10 @@
         "stdout": "[10, 6, 16, 16]\n17\n{false=[5, 3, 1], true=[8, 8]}\n{0=1, 1=1, 2=3}\n55\n3 5.0\n5,3,8,1,8\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 5891,
-        "compileMs": 349,
-        "generateMs": 5514,
-        "runMs": 16
+        "wallMs": 1597,
+        "compileMs": 88,
+        "generateMs": 1492,
+        "runMs": 11
       },
       {
         "id": "optional",
@@ -274,20 +274,20 @@
         "stdout": "VALUE\nfallback\ntrue\nfalse\ngot value\n43\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2137,
-        "compileMs": 113,
-        "generateMs": 1994,
-        "runMs": 9
+        "wallMs": 1311,
+        "compileMs": 40,
+        "generateMs": 1266,
+        "runMs": 3
       },
       {
         "id": "exceptions",
         "area": "errors",
         "ok": false,
         "stdout": "",
-        "error": "Main.java:18: cannot find symbol\n  symbol:   method getMessage()\n  location: variable e of type AppException\nMain.java:22: cannot find symbol\n  symbol:   method getClass()\n  location: variable e of type java.lang.RuntimeException\nMain.java:22: cannot find symbol\n  symbol:   method getMessage()\n  location: variable e of type java.lang.RuntimeException",
+        "error": "divide by zero\nRuntimeError: divide by zero\n    at Main::risky (wasm://wasm/0003068e:wasm-function[77]:0x1d40)\n    at Main::main (wasm://wasm/0003068e:wasm-function[208]:0x3c52)\n    at org.teavm.runtime.Fiber::runMain (wasm://wasm/0003068e:wasm-function[200]:0x3bb1)\n    at org.teavm.runtime.Fiber::lambda$startMain$0 (wasm://wasm/0003068e:wasm-function[191]:0x3a1a)\n    at org.teavm.runtime.Fiber$startMain$lambda$_34_0::run (wasm://wasm/0003068e:wasm-function[180]:0x37ad)\n    at org.teavm.runtime.Fiber$startMain$lambda$_34_0::run@caller (wasm://wasm/0003068e:wasm-function[181]:0x37bc)\n    at org.teavm.runtime.Fiber::start_0 (wasm://wasm/0003068e:wasm-function[141]:0x2ff4)\n    at org.teavm.runtime.Fiber::start (wasm://wasm/0003068e:wasm-function[136]:0x2f63)\n    at org.teavm.runtime.Fiber::startMain (wasm://wasm/0003068e:wasm-function[129]:0x2eb2)\n    at org.teavm.runtime.TeaVMJavacMain::start (wasm://wasm/0003068e:wasm-function[119]:0x2b82)",
         "exitCode": 1,
-        "wallMs": 45,
-        "compileMs": 45,
+        "wallMs": 1235,
+        "compileMs": -1,
         "generateMs": -1,
         "runMs": -1
       },
@@ -298,10 +298,10 @@
         "stdout": "open a\nopen b\nuse a\nuse b\nclose b\nclose a\ndone\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1781,
-        "compileMs": 43,
-        "generateMs": 1729,
-        "runMs": 2
+        "wallMs": 1297,
+        "compileMs": 25,
+        "generateMs": 1265,
+        "runMs": 1
       },
       {
         "id": "records",
@@ -310,10 +310,10 @@
         "stdout": "Point[x=1, y=2] 1 3\ntrue true\n[Point[x=1, y=2], Point[x=3, y=4]]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 3158,
-        "compileMs": 53,
-        "generateMs": 3080,
-        "runMs": 12
+        "wallMs": 1304,
+        "compileMs": 65,
+        "generateMs": 1232,
+        "runMs": 2
       },
       {
         "id": "var-textblock",
@@ -322,8 +322,8 @@
         "stdout": "",
         "error": "Main.java:10: cannot find symbol\n  symbol:   method lines()\n  location: variable block of type java.lang.String\nMain.java:10: cannot find symbol\n  symbol:   method lines()\n  location: class java.lang.String",
         "exitCode": 1,
-        "wallMs": 115,
-        "compileMs": 108,
+        "wallMs": 33,
+        "compileMs": 32,
         "generateMs": -1,
         "runMs": -1
       },
@@ -334,20 +334,20 @@
         "stdout": "3.14 4.0\n1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 4450,
-        "compileMs": 163,
-        "generateMs": 4223,
-        "runMs": 13
+        "wallMs": 1473,
+        "compileMs": 79,
+        "generateMs": 1385,
+        "runMs": 4
       },
       {
         "id": "reflection",
         "area": "runtime",
         "ok": false,
         "stdout": "",
-        "error": "Main.java:8: cannot find symbol\n  symbol:   method getClass()\n  location: variable t of type Main.Thing\nMain.java:8: cannot find symbol\n  symbol:   method getClass()\n  location: variable t of type Main.Thing\nMain.java:9: cannot find symbol\n  symbol:   method getClass()\n  location: variable t of type Main.Thing\nMain.java:10: cannot find symbol\n  symbol:   method getClass()\n  location: variable t of type Main.Thing\nMain.java:13: cannot find symbol\n  symbol:   method getClass()\n  location: variable t of type Main.Thing",
+        "error": "java.lang.NoSuchMethodException\nError\n    at decorateException (blob:http://localhost:8933/8296e055-cfcc-4edd-aa49-fbaac83e8597:2:577)\n    at java.lang.Throwable::fillInStackTrace (wasm://wasm/000423e2:wasm-function[32]:0x1b34)\n    at java.lang.Throwable::<init> (wasm://wasm/000423e2:wasm-function[158]:0x3a87)\n    at java.lang.Exception::<init> (wasm://wasm/000423e2:wasm-function[84]:0x2663)\n    at java.lang.ReflectiveOperationException::<init> (wasm://wasm/000423e2:wasm-function[98]:0x28a8)\n    at java.lang.NoSuchMethodException::<init> (wasm://wasm/000423e2:wasm-function[238]:0x4cef)\n    at java.lang.Class::getDeclaredMethod (wasm://wasm/000423e2:wasm-function[227]:0x4a27)\n    at Main::main (wasm://wasm/000423e2:wasm-function[222]:0x47f4)\n    at org.teavm.runtime.Fiber::runMain (wasm://wasm/000423e2:wasm-function[218]:0x468b)\n    at org.teavm.runtime.Fiber::lambda$startMain$0 (wasm://wasm/000423e2:wasm-function[209]:0x44f4)",
         "exitCode": 1,
-        "wallMs": 373,
-        "compileMs": 368,
+        "wallMs": 1497,
+        "compileMs": -1,
         "generateMs": -1,
         "runMs": -1
       },
@@ -358,10 +358,10 @@
         "stdout": "2024-02-29 THURSDAY 2024-03-01\n2024-01-02 03:04:05\n90 true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 16153,
-        "compileMs": 146,
-        "generateMs": 15938,
-        "runMs": 17
+        "wallMs": 4208,
+        "compileMs": 27,
+        "generateMs": 4138,
+        "runMs": 14
       },
       {
         "id": "regex",
@@ -370,10 +370,10 @@
         "stdout": "abc123 abc 123\ndef456 def 456\na#b#\ntrue\n[a, b, , c]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 8236,
-        "compileMs": 51,
-        "generateMs": 8153,
-        "runMs": 15
+        "wallMs": 3142,
+        "compileMs": 28,
+        "generateMs": 3069,
+        "runMs": 18
       },
       {
         "id": "system-props",
@@ -382,10 +382,10 @@
         "stdout": "java.version=21\nos.name=TeaVM\nspec=null\nline.separator=1\nnanoTime>0=true\ncurrentTimeMillis>0=true\nelapsed>=0=true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2304,
-        "compileMs": 28,
-        "generateMs": 2238,
-        "runMs": 25
+        "wallMs": 1442,
+        "compileMs": 27,
+        "generateMs": 1400,
+        "runMs": 10
       },
       {
         "id": "threads",
@@ -394,19 +394,19 @@
         "stdout": "in thread\nname=main\natomic=5\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2445,
-        "compileMs": 42,
-        "generateMs": 2214,
-        "runMs": 132
+        "wallMs": 1274,
+        "compileMs": 22,
+        "generateMs": 1234,
+        "runMs": 6
       },
       {
         "id": "file-io",
         "area": "io",
         "ok": false,
         "stdout": "",
-        "error": "WebAssembly.instantiate(): Import #11 \"teavmFile\": module is not an object or function\nTypeError: WebAssembly.instantiate(): Import #11 \"teavmFile\": module is not an object or function\n    at le (blob:http://localhost:8933/c74d3219-b0b3-4490-a5ae-04d2d63a8678:31:1232)\n    at async Ge (blob:http://localhost:8933/c74d3219-b0b3-4490-a5ae-04d2d63a8678:31:4771)\n    at async Le (blob:http://localhost:8933/c74d3219-b0b3-4490-a5ae-04d2d63a8678:32:677)\n    at async self.onmessage (blob:http://localhost:8933/c74d3219-b0b3-4490-a5ae-04d2d63a8678:32:1250)",
+        "error": "Directory does not exist\nError\n    at decorateException (blob:http://localhost:8933/8296e055-cfcc-4edd-aa49-fbaac83e8597:2:577)\n    at java.lang.Throwable::fillInStackTrace (wasm://wasm/000c01ca:wasm-function[42]:0x43f7)\n    at java.lang.Throwable::<init>_1 (wasm://wasm/000c01ca:wasm-function[409]:0xa757)\n    at java.lang.Exception::<init>_0 (wasm://wasm/000c01ca:wasm-function[168]:0x5c0a)\n    at java.io.IOException::<init>_0 (wasm://wasm/000c01ca:wasm-function[78]:0x485f)\n    at org.teavm.runtime.fs.memory.VirtualFileImpl::createFile (wasm://wasm/000c01ca:wasm-function[723]:0xf3c8)\n    at org.teavm.runtime.fs.memory.VirtualFileImpl::createFile@caller (wasm://wasm/000c01ca:wasm-function[724]:0xf3fc)\n    at java.nio.file.impl.DefaultFileSystemProvider::newOutputStream (wasm://wasm/000c01ca:wasm-function[716]:0xf20f)\n    at java.nio.file.impl.DefaultFileSystemProvider::newOutputStream@caller (wasm://wasm/000c01ca:wasm-function[717]:0xf2be)\n    at java.nio.file.Files::createFile (wasm://wasm/000c01ca:wasm-function[413]:0xa8d7)",
         "exitCode": 1,
-        "wallMs": 7056,
+        "wallMs": 2745,
         "compileMs": -1,
         "generateMs": -1,
         "runMs": -1
@@ -418,391 +418,12 @@
         "stdout": "buffered=livecodes\nscanner=eof\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 6448,
-        "compileMs": 116,
-        "generateMs": 6293,
-        "runMs": 20
+        "wallMs": 3420,
+        "compileMs": 26,
+        "generateMs": 3373,
+        "runMs": 12
       }
     ]
   },
-  "baseline": {
-    "engine": "baseline-doppio",
-    "initMs": 32125,
-    "results": [
-      {
-        "id": "hello",
-        "area": "basics",
-        "ok": true,
-        "stdout": "Hello, world\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 39791,
-        "compileMs": 37240,
-        "runMs": 2546
-      },
-      {
-        "id": "primitives",
-        "area": "basics",
-        "ok": true,
-        "stdout": "overflow=-2147483648\nlong=9007199254740993\ndouble=0.3333333333333333\nchar=65 cast=44\nbool=true not=false\nshift=-2147483648 -4 2147483644\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 23576,
-        "compileMs": 21677,
-        "runMs": 1896
-      },
-      {
-        "id": "strings",
-        "area": "basics",
-        "ok": false,
-        "stdout": "",
-        "error": "Compilation failed with exit code 1. Output: /tmp/Main.java:8: error: cannot find symbol\n    System.out.println(\"  pad  \".trim() + \"|\" + \"ab\".repeat(3));\n                                                    ^\n  symbol:   method repeat(int)\n  location: class String\n1 error\n",
-        "exitCode": 1,
-        "wallMs": 14301,
-        "compileMs": 14299,
-        "runMs": -1
-      },
-      {
-        "id": "stringbuilder",
-        "area": "basics",
-        "ok": true,
-        "stdout": ",9,8,7,6,5,4,3,2,1,0\naXc\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 13415,
-        "compileMs": 12133,
-        "runMs": 1280
-      },
-      {
-        "id": "stringformat",
-        "area": "basics",
-        "ok": true,
-        "stdout": "42|   42|42   |00042\n3.142|1.234500e+03|x|true\nn=7\n1,234,567\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 16890,
-        "compileMs": 14401,
-        "runMs": 2487
-      },
-      {
-        "id": "arrays-1d",
-        "area": "basics",
-        "ok": true,
-        "stdout": "[1, 3, 5, 9]\n2\n[1, 3, 5, 9, 7, 7] sum=32\ntrue\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 20905,
-        "compileMs": 14885,
-        "runMs": 6011
-      },
-      {
-        "id": "arrays-2d",
-        "area": "basics",
-        "ok": true,
-        "stdout": "[0, 1, 2]\n[3, 4, 5]\n[6, 7, 8]\ndeep=[[0, 1, 2], [3, 4, 5], [6, 7, 8]]\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 13062,
-        "compileMs": 11835,
-        "runMs": 1226
-      },
-      {
-        "id": "boxing",
-        "area": "basics",
-        "ok": true,
-        "stdout": "true true false\n43 -7 1010\n2147483647 -9223372036854775808 true\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 11936,
-        "compileMs": 10864,
-        "runMs": 1070
-      },
-      {
-        "id": "math-big",
-        "area": "basics",
-        "ok": true,
-        "stdout": "7 4 1024\n3 2.0 12.0\n1.01\n0.3\n246913578024691357802469135780\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 23647,
-        "compileMs": 19326,
-        "runMs": 4318
-      },
-      {
-        "id": "chars",
-        "area": "basics",
-        "ok": true,
-        "stdout": "true true A\n4 233 233\n1\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 29936,
-        "compileMs": 27323,
-        "runMs": 2606
-      },
-      {
-        "id": "inheritance",
-        "area": "oop",
-        "ok": true,
-        "stdout": "Square:9.0\nCircle:12.57\ntrue\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 33481,
-        "compileMs": 26966,
-        "runMs": 6513
-      },
-      {
-        "id": "interfaces",
-        "area": "oop",
-        "ok": true,
-        "stdout": "hello world\nException in thread \"main\" java.lang.NullPointerException: \n\tat Loud.greet(Main.java:7)\n\tat Main.main(Main.java:13)\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 35013,
-        "compileMs": 23330,
-        "runMs": 11670
-      },
-      {
-        "id": "inner-classes",
-        "area": "oop",
-        "ok": true,
-        "stdout": "10 1\nanon\n5\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 23809,
-        "compileMs": 21912,
-        "runMs": 1889
-      },
-      {
-        "id": "enums",
-        "area": "oop",
-        "ok": true,
-        "stdout": "MERCURY ordinal=0 density=5\nEARTH ordinal=1 density=5\nhome\ntrue\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 28387,
-        "compileMs": 27188,
-        "runMs": 1197
-      },
-      {
-        "id": "varargs-recursion",
-        "area": "oop",
-        "ok": true,
-        "stdout": "6 9 0\nfib=6765\nstring x\nobject x\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 32017,
-        "compileMs": 30714,
-        "runMs": 1301
-      },
-      {
-        "id": "list",
-        "area": "collections",
-        "ok": true,
-        "stdout": "[a, b, c, d] size=4\n[a, c, d] sub=[a, c]\n[a, d] contains=true idx=1\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 30472,
-        "compileMs": 19286,
-        "runMs": 11177
-      },
-      {
-        "id": "map",
-        "area": "collections",
-        "ok": true,
-        "stdout": "11 -1 size=3\na=11\nb=2\nc=3\n[a, b, c] [11, 2, 3] true\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 39868,
-        "compileMs": 34004,
-        "runMs": 5821
-      },
-      {
-        "id": "set",
-        "area": "collections",
-        "ok": true,
-        "stdout": "3 true\n[1, 2, 3]\n[1, 2, 3]\n[2, 3]\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 42451,
-        "compileMs": 41044,
-        "runMs": 1406
-      },
-      {
-        "id": "generics",
-        "area": "collections",
-        "ok": true,
-        "stdout": "true\n6.5\n[9]\nString\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 24145,
-        "compileMs": 21907,
-        "runMs": 2233
-      },
-      {
-        "id": "comparator",
-        "area": "collections",
-        "ok": true,
-        "stdout": "[bob(25), ann(30), cy(30)]\n[ann(30), bob(25), cy(30)]\n[ann(30), cy(30), bob(25)]\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 18717,
-        "compileMs": 14818,
-        "runMs": 3897
-      },
-      {
-        "id": "lambda",
-        "area": "functional",
-        "ok": true,
-        "stdout": "42 5 supplied\n[ANN, BOB]\n21\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 20777,
-        "compileMs": 16462,
-        "runMs": 4314
-      },
-      {
-        "id": "streams",
-        "area": "functional",
-        "ok": true,
-        "stdout": "[10, 6, 16, 16]\n17\n{false=[5, 3, 1], true=[8, 8]}\n{0=1, 1=1, 2=3}\n55\n3 5.0\n5,3,8,1,8\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 46972,
-        "compileMs": 41571,
-        "runMs": 5390
-      },
-      {
-        "id": "optional",
-        "area": "functional",
-        "ok": true,
-        "stdout": "VALUE\nfallback\ntrue\nfalse\ngot value\n43\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 23157,
-        "compileMs": 20426,
-        "runMs": 2729
-      },
-      {
-        "id": "exceptions",
-        "area": "errors",
-        "ok": true,
-        "stdout": "finally 5\nfinally 0\n20 -1\nfinally -1\ncaught negative\nIllegalStateException:nested\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 9856,
-        "compileMs": 8763,
-        "runMs": 1092
-      },
-      {
-        "id": "try-with-resources",
-        "area": "errors",
-        "ok": true,
-        "stdout": "open a\nopen b\nuse a\nuse b\nclose b\nclose a\ndone\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 12581,
-        "compileMs": 11196,
-        "runMs": 1383
-      },
-      {
-        "id": "records",
-        "area": "modern",
-        "ok": false,
-        "stdout": "",
-        "error": "Compilation failed with exit code 1. Output: /tmp/Main.java:5: error: not a statement\n    Point { if (x < 0) throw new IllegalArgumentException(\"x\"); }\n    ^\n/tmp/Main.java:5: error: ';' expected\n    Point { if (x < 0) throw new IllegalArgumentException(\"x\"); }\n         ^\n/tmp/Main.java:6: error: ';' expected\n    int sum() { return x + y; }\n           ^\n3 errors\n",
-        "exitCode": 1,
-        "wallMs": 8710,
-        "compileMs": 8708,
-        "runMs": -1
-      },
-      {
-        "id": "var-textblock",
-        "area": "modern",
-        "ok": false,
-        "stdout": "",
-        "error": "Compilation failed with exit code 1. Output: /tmp/Main.java:5: error: unclosed string literal\n    String block = \"\"\"\n                     ^\n/tmp/Main.java:6: error: ';' expected\n        line one\n                ^\n/tmp/Main.java:7: error: ';' expected\n        line two %s\"\"\";\n                ^\n/tmp/Main.java:7: error: not a statement\n        line two %s\"\"\";\n                  ^\n/tmp/Main.java:7: error: ';' expected\n        line two %s\"\"\";\n                   ^\n/tmp/Main.java:7: error: unclosed string literal\n        line two %s\"\"\";\n                     ^\n6 errors\n",
-        "exitCode": 1,
-        "wallMs": 4015,
-        "compileMs": 4013,
-        "runMs": -1
-      },
-      {
-        "id": "switch-expression",
-        "area": "modern",
-        "ok": false,
-        "stdout": "",
-        "error": "Compilation failed with exit code 1. Output: /tmp/Main.java:2: error: <identifier> expected\n  sealed interface Shape permits Circle, Square {}\n        ^\n/tmp/Main.java:2: error: ';' expected\n  sealed interface Shape permits Circle, Square {}\n                                ^\n/tmp/Main.java:2: error: <identifier> expected\n  sealed interface Shape permits Circle, Square {}\n                                       ^\n/tmp/Main.java:2: error: ';' expected\n  sealed interface Shape permits Circle, Square {}\n                                               ^\n/tmp/Main.java:3: error: ';' expected\n  record Circle(double r) implements Shape {}\n                         ^\n/tmp/Main.java:4: error: ';' expected\n  record Square(double s) implements Shape {}\n                         ^\n/tmp/Main.java:7: error: illegal start of expression\n    return switch (shape) {\n           ^\n/tmp/Main.java:7: error: not a statement\n    return switch (shape) {\n                  ^\n/tmp/Main.java:7: error: ';' expected\n    return switch (shape) {\n                         ^\n/tmp/Main.java:8: error: orphaned case\n      case Circle c -> Math.round(Math.PI * c.r() * c.r() * 100) / 100.0;\n      ^\n/tmp/Main.java:8: error: : expected\n      case Circle c -> Math.round(Math.PI * c.r() * c.r() * 100) / 100.0;\n                 ^\n/tmp/Main.java:8: error: not a statement\n      case Circle c -> Math.round(Math.PI * c.r() * c.r() * 100) / 100.0;\n                  ^\n/tmp/Main.java:9: error: : expected\n      case Square s -> s.s() * s.s();\n                 ^\n/tmp/Main.java:9: error: not a statement\n      case Square s -> s.s() * s.s();\n                  ^\n/tmp/Main.java:15: error: illegal start of expression\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n              ^\n/tmp/Main.java:15: error: not a statement\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n                     ^\n/tmp/Main.java:15: error: ';' expected\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n                          ^\n/tmp/Main.java:15: error: orphaned case\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n                             ^\n/tmp/Main.java:15: error: : expected\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n                                       ^\n/tmp/Main.java:15: error: ';' expected\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n                                        ^\n/tmp/Main.java:15: error: illegal start of expression\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n                                               ^\n/tmp/Main.java:15: error: ';' expected\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n                                                 ^\n/tmp/Main.java:15: error: : expected\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n                                                            ^\n/tmp/Main.java:15: error: illegal start of expression\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n                                                             ^\n/tmp/Main.java:15: error: ';' expected\n    int num = switch (day) { case \"MON\", \"TUE\" -> 1; default -> 0; };\n                                                               ^\n25 errors\n",
-        "exitCode": 1,
-        "wallMs": 21484,
-        "compileMs": 21480,
-        "runMs": -1
-      },
-      {
-        "id": "reflection",
-        "area": "runtime",
-        "ok": true,
-        "stdout": "Main$Thing Thing\n1\nvalue=3\nthing\nString\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 13341,
-        "compileMs": 11915,
-        "runMs": 1425
-      },
-      {
-        "id": "time-api",
-        "area": "runtime",
-        "ok": true,
-        "stdout": "2024-02-29 THURSDAY 2024-03-01\n2024-01-02 03:04:05\n90 true\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 15430,
-        "compileMs": 11122,
-        "runMs": 4306
-      },
-      {
-        "id": "regex",
-        "area": "runtime",
-        "ok": true,
-        "stdout": "abc123 abc 123\ndef456 def 456\na#b#\ntrue\n[a, b, , c]\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 29968,
-        "compileMs": 28387,
-        "runMs": 1579
-      },
-      {
-        "id": "system-props",
-        "area": "runtime",
-        "ok": true,
-        "stdout": "java.version=1.8.0_01-internal\nos.name=doppio\nspec=1.8\nline.separator=1\nnanoTime>0=true\ncurrentTimeMillis>0=true\nelapsed>=0=true\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 12790,
-        "compileMs": 11582,
-        "runMs": 1206
-      },
-      {
-        "id": "threads",
-        "area": "concurrency",
-        "ok": true,
-        "stdout": "in thread\nname=main\natomic=5\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 15339,
-        "compileMs": 12382,
-        "runMs": 2955
-      },
-      {
-        "id": "file-io",
-        "area": "io",
-        "ok": true,
-        "stdout": "hello file\nexists=true size=10\ndeleted=true\ntrue\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 13039,
-        "compileMs": 11186,
-        "runMs": 1852
-      }
-    ]
-  }
+  "baseline": null
 }

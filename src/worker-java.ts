@@ -88,6 +88,150 @@ async function init(baseUrl: string) {
 }
 
 /**
+ * File API bridge (`teavmFile`).
+ *
+ * Programs that touch java.io / java.nio import `teavmFile`. Without those imports
+ * `WebAssembly.instantiate()` fails outright — the whole module, not just the file call —
+ * so an innocuous `new File(...)` used to break every program that mentioned it. The
+ * protocol mirrors the fork's own JS wrapper: results are `Int8Array`s framed as
+ * `[status, ...bytes]` (0 = ok, 1 = error message), and ids handed back to wasm index a
+ * byte store for the async variants.
+ *
+ * There is no real filesystem, so reads consult an in-memory layer first and fall back to
+ * `fetch` (files served next to the page); writes land in that in-memory layer, which makes
+ * write-then-read-back work.
+ */
+const FILE_OPERATION_BYTES = new Map<number, Int8Array>();
+const MEMORY_FILES = new Map<string, Uint8Array>();
+let fileOperationNextId = 0;
+
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+function bytesOf(value: unknown): Uint8Array {
+  if (value == null) return new Uint8Array(0);
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof Int8Array) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  return new Uint8Array(0);
+}
+
+const decodeBytes = (value: unknown): string => textDecoder.decode(bytesOf(value));
+
+function fileOkResult(bytes?: Uint8Array | null): Int8Array {
+  const payload = bytes ?? new Uint8Array(0);
+  const out = new Int8Array(payload.length + 1);
+  out[0] = 0;
+  out.set(payload, 1);
+  return out;
+}
+
+function fileErrorResult(error: unknown): Int8Array {
+  const message = textEncoder.encode(String((error as { message?: string })?.message ?? error));
+  const out = new Int8Array(message.length + 1);
+  out[0] = 1;
+  out.set(message, 1);
+  return out;
+}
+
+function storeOperationBytes(value: Int8Array): number {
+  const id = ++fileOperationNextId;
+  FILE_OPERATION_BYTES.set(id, value);
+  return id;
+}
+
+const getOperationBytes = (id: number): Int8Array =>
+  FILE_OPERATION_BYTES.get(id | 0) ?? fileErrorResult(new Error('file operation result was released'));
+
+const statusOk = (): Int8Array => fileOkResult(new Uint8Array(0));
+
+/** The wasm export used to hand an async open result back to the running program. */
+function completeFileOpen(requestId: number, resultId: number): void {
+  const program = (globalThis as Record<string, unknown>).__teavmActiveProgram as
+    | { exports?: Record<string, unknown>; instance?: { exports?: Record<string, unknown> }; wasmProgram?: unknown }
+    | null;
+  const target = (program?.wasmProgram ?? program) as
+    | { exports?: Record<string, unknown>; instance?: { exports?: Record<string, unknown> } }
+    | null;
+  const complete = target?.exports?.['teavm_file_open_complete'] ?? target?.instance?.exports?.['teavm_file_open_complete'];
+  if (typeof complete === 'function') (complete as (a: number, b: number) => void)(requestId | 0, resultId | 0);
+}
+
+function installFileImports(imports: Record<string, unknown>): void {
+  const api: Record<string, unknown> = {};
+
+  api.setActiveProgram = (program: unknown) => {
+    (globalThis as Record<string, unknown>).__teavmActiveProgram = program;
+  };
+  api.errorResult = (error: unknown) => fileErrorResult(error);
+  api.storeOperationBytes = (value: unknown) => storeOperationBytes(bytesOf(value) as Int8Array);
+  api.operationBytes = (value: unknown) =>
+    typeof value === 'number' ? getOperationBytes(value) : bytesOf(value);
+  api.operationByteLength = (id: number) => getOperationBytes(id).length | 0;
+  api.operationByteAt = (id: number, index: number) => getOperationBytes(id)[index | 0] | 0;
+  api.releaseOperationBytes = (id: number) => {
+    FILE_OPERATION_BYTES.delete(id | 0);
+  };
+
+  const openSync = (pathBytes: unknown, modeBytes: unknown) => {
+    const path = decodeBytes(pathBytes);
+    const mode = decodeBytes(modeBytes) || 'read';
+    const existing = MEMORY_FILES.get(path);
+    if (existing) return fileOkResult(existing);
+    if (mode === 'write' || mode === 'append') return fileOkResult(new Uint8Array(0));
+    return fileErrorResult(new Error(`File not found: ${path}`));
+  };
+  api.open = openSync;
+
+  api.openAsyncStart = (requestId: number, pathBytes: unknown, modeBytes: unknown) => {
+    const path = decodeBytes(pathBytes);
+    const mode = decodeBytes(modeBytes) || 'read';
+    const existing = MEMORY_FILES.get(path);
+    if (existing || mode === 'write' || mode === 'append') {
+      completeFileOpen(requestId, storeOperationBytes(fileOkResult(existing ?? new Uint8Array(0))));
+      return;
+    }
+    fetch(path).then(
+      (response) =>
+        response.ok
+          ? response.arrayBuffer()
+          : Promise.reject(new Error(`File not found: ${path}`)),
+      () => Promise.reject(new Error(`File not found: ${path}`))
+    ).then(
+      (buffer) => completeFileOpen(requestId, storeOperationBytes(fileOkResult(new Uint8Array(buffer)))),
+      (error) => completeFileOpen(requestId, storeOperationBytes(fileErrorResult(error)))
+    );
+  };
+
+  api.write = (pathBytes: unknown, data: unknown) => {
+    MEMORY_FILES.set(decodeBytes(pathBytes), bytesOf(data));
+    return statusOk();
+  };
+  api.writeSync = (pathBytes: unknown, data: unknown) => {
+    MEMORY_FILES.set(decodeBytes(pathBytes), bytesOf(data));
+    return storeOperationBytes(statusOk());
+  };
+  api.close = (pathBytes: unknown, _modeBytes: unknown, data: unknown) => {
+    if (data != null) MEMORY_FILES.set(decodeBytes(pathBytes), bytesOf(data));
+    return statusOk();
+  };
+  api.closeSync = (pathBytes: unknown, _modeBytes: unknown, data: unknown) => {
+    if (data != null) MEMORY_FILES.set(decodeBytes(pathBytes), bytesOf(data));
+    return storeOperationBytes(statusOk());
+  };
+
+  // Assets are not supported here; fail the callback rather than the module.
+  const assetNotSupported = (requestId: number) => {
+    completeFileOpen(requestId, storeOperationBytes(fileErrorResult(new Error('assets are not supported'))));
+  };
+  api.loadImageAsyncStart = (requestId: number) => assetNotSupported(requestId);
+  api.loadFontAsyncStart = (requestId: number) => assetNotSupported(requestId);
+
+  imports.teavmFile = api;
+}
+
+/**
  * Loads a generated app wasm and runs it to completion.
  *
  * Programs compile to an async entry point (`main(args, onFinish)` backed by
@@ -111,6 +255,9 @@ async function executeProgram(wasm: Int8Array, input: string) {
       consoleImports.putcharStderr = (code) => {
         stderr += String.fromCharCode(code & 0xffff);
       };
+      // Programs that touch java.io/java.nio import `teavmFile`; without it, instantiation
+      // fails for the whole module.
+      installFileImports(imports);
     },
   });
 

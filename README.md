@@ -75,6 +75,35 @@ Returns `{ run(source, { input, mainClass }), on('progress', fn), destroy() }`.
 
 Progress stages are `init` → `compile` → `generate` → `run`.
 
+## javac SDK patch
+
+The fork's compiler leaks TeaVM internals into the javac class library it generates, which makes
+ordinary Java fail to compile:
+
+- methods keep their internal `@Rename`d names — `getClass0` instead of `getClass`, so
+  `getClass()` and `Throwable.getMessage()` do not resolve;
+- `InnerClasses` entries keep their pre-rename owners, so `Map.Entry` does not resolve even though
+  `Map$Entry.class` is present.
+
+`npm run vendor:teavm` verifies the pinned download and then rewrites the archive in place
+(`scripts/patch-sdk.mjs`): 618 classes, 19 member renames, 2331 `InnerClasses` entries. Renames
+skip constructors and anything that would collide, so no declaration is lost. On the corpus this
+took java-wasm's pass rate from 27/35 to 30/35, with no regressions.
+
+This is a workaround for a bug that belongs upstream in `StdlibConverter`; it disappears if the
+fork is fixed and the archive rebuilt.
+
+## Corpus test
+
+`corpus/` runs 35 programs through both this package and LiveCodes' current engine (Doppio,
+JDK 8) and diffs the results:
+
+```bash
+node corpus/run.mjs          # both engines (~15 min); `node corpus/run.mjs teavm` is ~90 s
+```
+
+See `corpus/README.md` for the current numbers and the remaining gaps.
+
 ## Build
 
 ```bash

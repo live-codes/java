@@ -71,6 +71,18 @@ maintainer has ruled out compiling `scalac` because of the `LazyVals`/`sun.misc.
 - `teavm.org` sends no CORS headers → artifacts ship inside the package. We vendor a pinned,
   checksummed build of our fork instead (`scripts/fetch-teavm.mjs`).
 
+**javac SDK surface (found by the corpus test).** The fork's `StdlibConverter` emits class files
+that still carry TeaVM's internal names, so javac cannot resolve ordinary API:
+
+- `@Rename`d methods keep their internal name — the archive contains `getClass0`, not `getClass`,
+  so `getClass()` fails to compile, likewise `getMessage()`, `clone()`, `notify()`.
+- `InnerClasses` entries keep their pre-rename owners, so `Map.Entry` does not resolve even though
+  `java/util/Map$Entry.class` is present.
+
+`scripts/patch-sdk.mjs` rewrites the archive at vendoring time (append-only constant-pool edits:
+indexes are stable, so nothing shifts). Constructors and colliding names are skipped. This lifted
+the corpus pass rate from 27/35 to 30/35; the proper fix belongs in `StdlibConverter`.
+
 **Doppio (retained for reference — the engine we stopped using)**
 
 - `Doppio.VM.CLI(args, opts, onExit, onJvm)` — the 4th callback yields the JVM handle; write stdin

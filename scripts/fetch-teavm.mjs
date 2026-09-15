@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { gunzipSync } from 'node:zlib';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { patchSdkArchive } from './patch-sdk.mjs';
 
 // TeaVM WasmGC compiler artifacts built by our teavm-javac fork (Apache-2.0;
 // the bundled javac comes from OpenJDK, GPLv2 + Classpath Exception).
@@ -54,4 +56,17 @@ for (const name of files) {
 }
 
 if (failed) process.exit(1);
+
+// The fork's StdlibConverter leaks TeaVM internals into the javac SDK: methods keep their
+// internal `@Rename`d names (`getClass0`, so `getClass()` does not resolve) and InnerClasses
+// entries keep their pre-rename owners (`Map.Entry` does not resolve). Both are patched into
+// the archive here rather than at runtime — see scripts/patch-sdk.mjs for the details.
+const sdkPath = join(outDir, 'compile-classlib-teavm.bin');
+const patched = patchSdkArchive(gunzipSync(await readFile(sdkPath)));
+await writeFile(sdkPath, patched.archive);
+console.log(
+  `compile-classlib-teavm.bin: patched ${patched.classes} classes ` +
+    `(${patched.renames} member renames, ${patched.innerClasses} InnerClasses entries)`
+);
+
 console.log(`vendor/teavm ready (teavm-javac ${REPO}@${COMMIT.slice(0, 7)}, TeaVM ${TEAVM_VERSION})`);

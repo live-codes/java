@@ -102,12 +102,15 @@ export async function createRuntime(options: CreateJavaRuntimeOptions = {}): Pro
       const r = data as Record<string, unknown>;
       const stdout = String(r.stdout ?? '');
       const stderr = String(r.stderr ?? '');
+      // The worker reports unhandled failures through `error` (with no stderr); dropping
+      // it makes those failures look like empty output.
+      const failure = String(r.error ?? '');
       pending?.({
         ok: Boolean(r.ok),
         stdout,
-        stderr,
+        stderr: stderr || failure,
         output: stdout,
-        error: stderr,
+        error: stderr || failure,
         exitCode: Number(r.exitCode ?? 1),
         compileMs: r.compileMs as number | undefined,
         generateMs: r.generateMs as number | undefined,

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>corpus — baseline (LiveCodes / Doppio JDK 8)</title>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script type="module">
+      import { PROGRAMS, STDIN } from './programs.mjs';
+
+      const log = (s) => (document.getElementById('log').textContent += s + '\n');
+      window.corpusResults = null;
+      window.corpusDone = false;
+      window.corpusPhase = 'starting';
+
+      const worker = new Worker('./baseline-worker.js');
+
+      const waitFor = (predicate, label, timeoutMs) =>
+        new Promise((resolve, reject) => {
+          const started = performance.now();
+          const check = () => {
+            if (predicate()) return resolve();
+            if (performance.now() - started > timeoutMs) return reject(new Error('timeout waiting for ' + label));
+            setTimeout(check, 100);
+          };
+          check();
+        });
+
+      let loaded = false;
+      let initialized = false;
+      const pending = new Map();
+
+      worker.onmessage = (e) => {
+        const d = e.data || {};
+        if (d.loaded) {
+          loaded = true;
+          return;
+        }
+        if (d.initialized) {
+          initialized = true;
+          return;
+        }
+        const resolve = pending.get(d.id);
+        if (resolve) {
+          pending.delete(d.id);
+          resolve(d);
+        }
+      };
+
+      (async () => {
+        const results = [];
+        try {
+          window.corpusPhase = 'loading doppio + jars';
+          log('waiting for worker loaded…');
+          await waitFor(() => loaded, 'loaded', 60000);
+          log('waiting for java environment init (fetches ~85 MB of jars)…');
+          const t0 = performance.now();
+          await waitFor(() => initialized, 'initialized', 300000);
+          const initMs = Math.round(performance.now() - t0);
+          log(`initialized in ${initMs} ms`);
+
+          for (const [index, program] of PROGRAMS.entries()) {
+            window.corpusPhase = `running ${index + 1}/${PROGRAMS.length}: ${program.id}`;
+            const started = performance.now();
+            const result = await new Promise((resolve) => {
+              pending.set(program.id, resolve);
+              worker.postMessage({ id: program.id, code: program.source, input: STDIN });
+            });
+            const wallMs = Math.round(performance.now() - started);
+            const ok = !result.error && result.exitCode === 0;
+            results.push({
+              id: program.id,
+              area: program.area,
+              ok,
+              stdout: result.output ?? '',
+              error: result.error ?? '',
+              exitCode: result.exitCode,
+              wallMs,
+              compileMs: Math.round(result.timings?.compileMs ?? -1),
+              runMs: Math.round(result.timings?.runMs ?? -1),
+            });
+            window.corpusResults = { engine: 'baseline-doppio', initMs, results };
+            log(`${ok ? 'ok  ' : 'FAIL'} ${program.id} (${wallMs} ms)`);
+          }
+          window.corpusResults = { engine: 'baseline-doppio', initMs, results };
+        } catch (err) {
+          window.corpusResults = {
+            engine: 'baseline-doppio',
+            fatal: String((err && err.message) || err),
+            results,
+          };
+          log('FATAL ' + String((err && err.message) || err));
+        }
+        window.corpusPhase = 'done';
+        window.corpusDone = true;
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>corpus — @live-codes/java-wasm</title>
+  </head>
+  <body>
+    <pre id="log"></pre>
+    <script src="/dist/java-wasm.iife.js"></script>
+    <script type="module">
+      import { PROGRAMS, STDIN } from './programs.mjs';
+
+      const log = (s) => (document.getElementById('log').textContent += s + '\n');
+      window.corpusResults = null;
+      window.corpusDone = false;
+      window.corpusPhase = 'starting';
+
+      (async () => {
+        const results = [];
+        try {
+          window.corpusPhase = 'loading toolchain';
+          const t0 = performance.now();
+          const runtime = await JavaWasm.createRuntime({ baseUrl: '/dist/' });
+          const initMs = Math.round(performance.now() - t0);
+          log(`initialized in ${initMs} ms`);
+
+          for (const [index, program] of PROGRAMS.entries()) {
+            window.corpusPhase = `running ${index + 1}/${PROGRAMS.length}: ${program.id}`;
+            const started = performance.now();
+            let entry;
+            try {
+              const r = await runtime.run(program.source, { input: STDIN });
+              entry = {
+                id: program.id,
+                area: program.area,
+                ok: r.ok && r.exitCode === 0,
+                stdout: r.stdout ?? '',
+                error: r.stderr || r.error || '',
+                exitCode: r.exitCode,
+                wallMs: Math.round(performance.now() - started),
+                compileMs: Math.round(r.compileMs ?? -1),
+                generateMs: Math.round(r.generateMs ?? -1),
+                runMs: Math.round(r.runMs ?? -1),
+              };
+            } catch (e) {
+              entry = {
+                id: program.id,
+                area: program.area,
+                ok: false,
+                stdout: '',
+                error: String((e && e.message) || e),
+                exitCode: -1,
+                wallMs: Math.round(performance.now() - started),
+              };
+            }
+            results.push(entry);
+            window.corpusResults = { engine: 'java-wasm', initMs, results };
+            log(`${entry.ok ? 'ok  ' : 'FAIL'} ${program.id} (${entry.wallMs} ms)`);
+          }
+          window.corpusResults = { engine: 'java-wasm', initMs, results };
+          runtime.destroy();
+        } catch (err) {
+          window.corpusResults = { engine: 'java-wasm', fatal: String((err && err.message) || err), results };
+          log('FATAL ' + String((err && err.message) || err));
+        }
+        window.corpusPhase = 'done';
+        window.corpusDone = true;
+      })();
+    </script>
+  </body>
+</html>

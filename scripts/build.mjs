@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { cp, mkdir, access } from 'node:fs/promises';
+import { access, cp, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -27,20 +27,14 @@ const common = {
 await build({
   ...common,
   entryPoints: [root + 'src/index.ts'],
-  globalName: 'BrowserJvm',
-  outfile: root + 'dist/browser-jvm.iife.js',
+  globalName: 'JavaWasm',
+  outfile: root + 'dist/java-wasm.iife.js',
 });
 
 await build({
   ...common,
-  entryPoints: [root + 'src/worker-teavm.ts'],
-  outfile: root + 'dist/worker-teavm.js',
-});
-
-await build({
-  ...common,
-  entryPoints: [root + 'src/worker-doppio.ts'],
-  outfile: root + 'dist/worker-doppio.js',
+  entryPoints: [root + 'src/worker-java.ts'],
+  outfile: root + 'dist/worker-java.js',
 });
 
 await cp(vendorTeavm, root + 'dist/teavm/', { recursive: true });

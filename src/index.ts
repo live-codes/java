@@ -1,58 +1,56 @@
 /**
- * @live-codes/browser-jvm — client-side JVM toolchain for LiveCodes.
+ * @live-codes/java-wasm — client-side Java for LiveCodes.
  *
- * Engines:
- *  - `teavm`  (default for Java): teavm-javac — in-browser javac + TeaVM AOT → WebAssembly.
- *  - `doppio` (Kotlin/Scala, Java fallback): seo-rii/doppio `modern` — JVM interpreted in TS.
+ * Java source → class files → WebAssembly, entirely in the browser: a fork of
+ * teavm-javac bundles OpenJDK's javac and the TeaVM AOT compiler into one Wasm
+ * module, and generated programs run as WebAssembly. No server.
  *
- * Usage (IIFE global `BrowserJvm`):
- *   const runtime = await BrowserJvm.createRuntime({ engine: 'teavm' });
- *   const result = await runtime.run('public class Main { ... }');
- *   // result: { output, error, exitCode, stdout, stderr, compileMs, runMs }
+ * Usage (IIFE global `JavaWasm`):
+ *   const runtime = await JavaWasm.createRuntime();
+ *   const result = await runtime.run('public class Main { public static void main(String[] a) { … } }', {
+ *     input: 'hello\n',           // optional stdin
+ *   });
+ *   // result: { ok, output, error, exitCode, stdout, stderr, compileMs, generateMs, runMs }
+ *   runtime.destroy();
  */
 
-export interface JvmRunResult {
+export interface JavaRunResult {
   ok: boolean;
   output: string;
   error: string;
   stdout: string;
   stderr: string;
   exitCode: number;
+  /** javac: source → class files */
   compileMs?: number;
+  /** TeaVM: class files → WebAssembly */
   generateMs?: number;
+  /** execution of the generated module */
   runMs?: number;
 }
 
-/** Coarse progress from the engine — the interpreted JVM can take minutes. */
-export interface JvmProgress {
+/** Coarse progress from the engine (toolchain load, compile, generate, run). */
+export interface JavaProgress {
   stage: string;
   detail: string;
 }
 
-export interface JvmRuntime {
-  engine: 'teavm' | 'doppio';
-  language: 'java' | 'kotlin' | 'scala';
-  run(source: string, options?: { input?: string; mainClass?: string }): Promise<JvmRunResult>;
+export interface JavaRuntime {
+  run(source: string, options?: { input?: string; mainClass?: string }): Promise<JavaRunResult>;
   /** Subscribe to progress events. Returns an unsubscribe function. */
-  on(event: 'progress', listener: (progress: JvmProgress) => void): () => void;
-  stop(): void;
+  on(event: 'progress', listener: (progress: JavaProgress) => void): () => void;
   destroy(): void;
 }
 
-export interface CreateRuntimeOptions {
-  engine: 'teavm' | 'doppio';
-  /** Language the runtime will execute (affects doppio compile recipe / main-class defaults). */
-  language?: 'java' | 'kotlin' | 'scala';
-  /** Directory hosting this package's dist files (worker scripts). Defaults to the bundle's own URL. */
+export interface CreateJavaRuntimeOptions {
+  /** Directory hosting this package's dist files (worker script + `teavm/`). Defaults to the bundle's own URL. */
   baseUrl?: string;
-  /** Explicit worker script URL; overrides `<baseUrl>/worker-<engine>.js`. */
+  /** Explicit worker script URL; overrides `<baseUrl>/worker-java.js`. */
   workerUrl?: string;
-  /** Override the doppio-modern runtime base (browserfs/doppio/listings.json directory). */
-  doppioBaseUrl?: string;
-  /** Override the TeaVM assets base (compiler.wasm + classlib archives directory). */
+  /** Override the TeaVM assets base (compiler.wasm + classlib archives directory). Defaults to `<baseUrl>/teavm/`. */
   teavmBaseUrl?: string;
-  /** Called with coarse engine progress (useful for the multi-minute Doppio compiles). */
-  onProgress?: (progress: JvmProgress) => void;
+  /** Called with coarse engine progress. */
+  onProgress?: (progress: JavaProgress) => void;
 }
 
 // Captured while the <script> tag is still evaluating (currentScript is null later).
@@ -70,21 +68,18 @@ async function createWorker(url: string): Promise<Worker> {
   return new Worker(URL.createObjectURL(blob));
 }
 
-export async function createRuntime(options: CreateRuntimeOptions): Promise<JvmRuntime> {
-  const engine = options.engine;
-  const language = options.language ?? 'java';
+export async function createRuntime(options: CreateJavaRuntimeOptions = {}): Promise<JavaRuntime> {
   const base = resolveBase(options.baseUrl);
   if (!base) throw new Error('baseUrl is required when the bundle is not loaded via a <script src> tag');
-  const workerUrl = new URL(`worker-${engine}.js`, base).href;
 
-  const worker = await createWorker(workerUrl);
+  const worker = await createWorker(options.workerUrl ? resolveBase(options.workerUrl) : new URL('worker-java.js', base).href);
 
-  let pending: ((result: JvmRunResult) => void) | null = null;
+  let pending: ((result: JavaRunResult) => void) | null = null;
   let initResolve: ((value: { initMs: number }) => void) | null = null;
   let initReject: ((reason: Error) => void) | null = null;
 
-  const progressListeners = new Set<(progress: JvmProgress) => void>();
-  const emitProgress = (progress: JvmProgress) => {
+  const progressListeners = new Set<(progress: JavaProgress) => void>();
+  const emitProgress = (progress: JavaProgress) => {
     options.onProgress?.(progress);
     for (const listener of progressListeners) listener(progress);
   };
@@ -127,24 +122,19 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<JvmR
     initReject = reject;
   });
 
-  const initMessage: Record<string, unknown> = { cmd: 'init' };
-  if (engine === 'teavm') {
-    // dist/teavm/ sits next to the worker script; explicit override wins.
-    initMessage.baseUrl = options.teavmBaseUrl ? resolveBase(options.teavmBaseUrl) : new URL('teavm/', base).href;
-  }
-  if (engine === 'doppio' && options.doppioBaseUrl) initMessage.baseUrl = resolveBase(options.doppioBaseUrl);
-  worker.postMessage(initMessage);
+  // dist/teavm/ sits next to the worker script; an explicit override wins.
+  worker.postMessage({
+    cmd: 'init',
+    baseUrl: options.teavmBaseUrl ? resolveBase(options.teavmBaseUrl) : new URL('teavm/', base).href,
+  });
   await initialized;
 
   return {
-    engine,
-    language,
     run(source, runOptions = {}) {
-      return new Promise<JvmRunResult>((resolve) => {
+      return new Promise<JavaRunResult>((resolve) => {
         pending = resolve;
         worker.postMessage({
           cmd: 'run',
-          language,
           source,
           input: runOptions.input ?? '',
           mainClass: runOptions.mainClass,
@@ -158,9 +148,6 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<JvmR
       }
       return () => {};
     },
-    stop() {
-      if (engine === 'doppio') worker.postMessage({ cmd: 'stop' });
-    },
     destroy() {
       worker.terminate();
     },
@@ -169,5 +156,5 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<JvmR
 
 const globalExport = { createRuntime } as const;
 if (typeof globalThis !== 'undefined') {
-  (globalThis as Record<string, unknown>).BrowserJvm = globalExport;
+  (globalThis as Record<string, unknown>).JavaWasm = globalExport;
 }

@@ -1,5 +1,5 @@
 /**
- * TeaVM worker — javac + TeaVM AOT compiler in one wasm module (Apache-2.0).
+ * Java worker — javac + TeaVM AOT compiler in one wasm module (Apache-2.0).
  * Artifacts come from our teavm-javac fork: WasmGC compiler backend plus a
  * runtime classlib that implements System.in through the `teavmConsole` imports.
  * Self-contained classic worker: the TeaVM runtime glue is bundled at build time
@@ -53,7 +53,7 @@ type TeaVmLoader = (input: Int8Array | string, options?: LoadOptions) => Promise
 const loadModule = load as unknown as TeaVmLoader;
 
 // Wall-clock cap for a single program run, so a runaway/blocked program cannot
-// wedge the worker (the JVM has no scheduler we can preempt from here).
+// wedge the worker (the runtime has no scheduler we can preempt from here).
 const RUN_TIMEOUT_MS = 30_000;
 
 let compiler: TeaVmCompiler | null = null;
@@ -220,7 +220,7 @@ self.onmessage = async (e: MessageEvent) => {
           try {
             return new URL('.', self.location.href).href;
           } catch {
-            throw new Error('teavm worker: baseUrl is required when loaded from a blob/data URL');
+            throw new Error('java worker: baseUrl is required when loaded from a blob/data URL');
           }
         })();
       await init(base);

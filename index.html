@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Java in the browser (TeaVM → WebAssembly)</title>
+    <title>Java in the browser (javac + TeaVM → WebAssembly)</title>
     <style>
       :root {
         color-scheme: dark;
@@ -127,7 +127,7 @@ public class Main {
       </section>
     </main>
 
-    <script src="./dist/browser-jvm.iife.js"></script>
+    <script src="./dist/java-wasm.iife.js"></script>
     <script>
       const editor = document.querySelector('#editor');
       const stdinBox = document.querySelector('#stdin');
@@ -140,7 +140,6 @@ public class Main {
       const duration = document.querySelector('#duration');
       const progress = document.querySelector('#progress');
       const progressText = document.querySelector('#progress-text');
-      const progressBar = document.querySelector('#progress-bar');
 
       let runtime = null;
       let running = false;
@@ -156,7 +155,13 @@ public class Main {
 
       (async () => {
         try {
-          runtime = await BrowserJvm.createRuntime({ engine: 'teavm', language: 'java', baseUrl: './dist/' });
+          runtime = await JavaWasm.createRuntime({
+            baseUrl: './dist/',
+            onProgress: ({ stage, detail }) => {
+              progressText.textContent = detail ? stage + ' — ' + detail : stage;
+              setStatus(stage);
+            },
+          });
           progress.hidden = true;
           setStatus('ready', 'ok');
           runButton.disabled = false;
@@ -184,7 +189,17 @@ public class Main {
           stdout.textContent = result.stdout || '';
           stderr.textContent = result.stderr || (result.ok ? '' : result.error || '');
           setExit(result.exitCode);
-          duration.textContent = ms + ' ms';
+          duration.textContent =
+            (ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : ms + ' ms') +
+            (typeof result.compileMs === 'number'
+              ? '  (compile ' +
+                Math.round(result.compileMs) +
+                ' / generate ' +
+                Math.round(result.generateMs || 0) +
+                ' / run ' +
+                Math.round(result.runMs || 0) +
+                ' ms)'
+              : '');
           setStatus(result.ok ? 'done' : 'failed', result.ok ? 'ok' : 'err');
         } catch (error) {
           setStatus('error', 'err');

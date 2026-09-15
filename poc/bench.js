@@ -79,44 +79,6 @@ public class Main {
 `,
       },
     ],
-    kotlin: [
-      {
-        id: 'kotlin-hello',
-        label: 'Kotlin · data class + collections',
-        kind: 'sanity',
-        filename: 'Main.kt',
-        mainClass: 'MainKt',
-        expect: 'Kotlin 2011 squares=[1, 4, 9, 16, 25]',
-        source: `data class Language(val name: String, val year: Int)
-
-fun main() {
-  val langs = listOf(Language("Kotlin", 2011), Language("LiveCodes", 2020))
-  val squares = (1..5).map { it * it }
-  println("\${langs[0].name} \${langs[0].year} squares=\$squares")
-}
-`,
-      },
-    ],
-    scala: [
-      {
-        id: 'scala-hello',
-        label: 'Scala · case class + LazyList',
-        kind: 'sanity',
-        filename: 'Main.scala',
-        mainClass: 'Main',
-        expect: 'Scala 2003 doubled=List(2, 4, 6, 8, 10)',
-        source: `case class Lang(name: String, year: Int)
-
-object Main {
-  def main(args: Array[String]): Unit = {
-    val langs = List(Lang("Scala", 2003), Lang("LiveCodes", 2020))
-    val doubled = LazyList.from(1).map(_ * 2).take(5).toList
-    println(s"\${langs.head.name} \${langs.head.year} doubled=\$doubled")
-  }
-}
-`,
-      },
-    ],
   };
 
   const fmtMs = (ms) => (ms == null ? '—' : ms >= 1000 ? (ms / 1000).toFixed(2) + ' s' : Math.round(ms) + ' ms');

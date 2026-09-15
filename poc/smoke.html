@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Smoke — @live-codes/browser-jvm dist bundle</title>
+    <title>Smoke — @live-codes/java-wasm dist bundle</title>
     <style>
       body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 900px; }
       .case { border: 1px solid #ccc; padding: 0.6rem; margin: 0.6rem 0; }
@@ -12,9 +12,9 @@
     </style>
   </head>
   <body>
-    <h1>Smoke — dist/browser-jvm.iife.js</h1>
+    <h1>Smoke — dist/java-wasm.iife.js</h1>
     <div id="out"></div>
-    <script src="/dist/browser-jvm.iife.js"></script>
+    <script src="/dist/java-wasm.iife.js"></script>
     <script>
       const out = document.querySelector('#out');
       const addCase = (name, pass, detail) => {
@@ -52,32 +52,22 @@ public class Main {
 }`;
 
       (async () => {
-        // TeaVM engine
         try {
           const t0 = performance.now();
-          const teavm = await BrowserJvm.createRuntime({ engine: 'teavm', language: 'java', baseUrl: '/dist/' });
-          const r1 = await teavm.run(HELLO);
-          addCase('teavm java hello', r1.exitCode === 0 && r1.output.includes('Hello from Java'),
-            `init+run ${Math.round(performance.now() - t0)}ms\n${r1.output}`);
-          const r2 = await teavm.run(FEATURES);
-          addCase('teavm modern java', r2.exitCode === 0 && r2.output.includes('Point[x=10, y=20]'), r2.output);
-          const r3 = await teavm.run(STDIN, { input: 'livecodes\n' });
-          addCase('teavm java stdin', r3.exitCode === 0 && r3.output.includes('echo: livecodes'), r3.output);
-          teavm.destroy();
+          const runtime = await JavaWasm.createRuntime({ baseUrl: '/dist/' });
+          const r1 = await runtime.run(HELLO);
+          addCase(
+            'java hello',
+            r1.exitCode === 0 && r1.output.includes('Hello from Java'),
+            `init+run ${Math.round(performance.now() - t0)}ms\n${r1.output}`
+          );
+          const r2 = await runtime.run(FEATURES);
+          addCase('modern java', r2.exitCode === 0 && r2.output.includes('Point[x=10, y=20]'), r2.output);
+          const r3 = await runtime.run(STDIN, { input: 'livecodes\n' });
+          addCase('java stdin', r3.exitCode === 0 && r3.output.includes('echo: livecodes'), r3.output);
+          runtime.destroy();
         } catch (e) {
-          addCase('teavm engine', false, String(e && e.stack || e));
-        }
-
-        // Doppio engine (lazy jar fetch makes the first run slow — one program only)
-        try {
-          const t1 = performance.now();
-          const doppio = await BrowserJvm.createRuntime({ engine: 'doppio', language: 'java' });
-          const r3 = await doppio.run(HELLO);
-          addCase('doppio java hello', r3.exitCode === 0 && r3.output.includes('Hello from Java'),
-            `init+run ${Math.round(performance.now() - t1)}ms\n${r3.output}`);
-          doppio.destroy();
-        } catch (e) {
-          addCase('doppio engine', false, String(e && e.stack || e));
+          addCase('java engine', false, String((e && e.stack) || e));
         }
         window.smokeDone = true;
       })();

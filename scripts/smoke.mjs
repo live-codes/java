@@ -1,11 +1,10 @@
-import { access, readFile, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const required = [
-  'dist/browser-jvm.iife.js',
-  'dist/worker-teavm.js',
-  'dist/worker-doppio.js',
+  'dist/java-wasm.iife.js',
+  'dist/worker-java.js',
   'dist/teavm/compiler.wasm',
   'dist/teavm/compile-classlib-teavm.bin',
   'dist/teavm/runtime-classlib-teavm.bin',
@@ -23,7 +22,7 @@ for (const file of required) {
 }
 
 // Parse-check each bundle (syntax validity).
-for (const file of ['dist/browser-jvm.iife.js', 'dist/worker-teavm.js', 'dist/worker-doppio.js']) {
+for (const file of ['dist/java-wasm.iife.js', 'dist/worker-java.js']) {
   try {
     const src = await readFile(root + file, 'utf8');
     // eslint-disable-next-line no-new-func
@@ -35,18 +34,32 @@ for (const file of ['dist/browser-jvm.iife.js', 'dist/worker-teavm.js', 'dist/wo
   }
 }
 
-// The TeaVM worker must embed the runtime glue and the stdin/completion wiring.
-const teavmWorker = await readFile(root + 'dist/worker-teavm.js', 'utf8');
+// The worker must embed the runtime glue and the stdin/completion wiring.
+const worker = await readFile(root + 'dist/worker-java.js', 'utf8');
 for (const [needle, label] of [
   ['putcharStdout', 'embeds the TeaVM runtime glue'],
   ['readStdin', 'wires stdin (teavmConsole.readStdin)'],
   ['teavm_stopped', 'waits on the teavm_stopped completion flag'],
 ]) {
-  if (!teavmWorker.includes(needle)) {
-    console.error(`worker-teavm.js is missing ${needle} — expected it to ${label}`);
+  if (!worker.includes(needle)) {
+    console.error(`worker-java.js is missing ${needle} — expected it to ${label}`);
     failed = true;
   } else {
-    console.log(`ok  worker-teavm.js ${label}`);
+    console.log(`ok  worker-java.js ${label}`);
+  }
+}
+
+// The entry bundle must expose the documented global and the worker path.
+const entry = await readFile(root + 'dist/java-wasm.iife.js', 'utf8');
+for (const [needle, label] of [
+  ['JavaWasm', 'exposes the JavaWasm global'],
+  ['worker-java.js', 'loads worker-java.js'],
+]) {
+  if (!entry.includes(needle)) {
+    console.error(`java-wasm.iife.js is missing ${needle} — expected it to ${label}`);
+    failed = true;
+  } else {
+    console.log(`ok  java-wasm.iife.js ${label}`);
   }
 }
 

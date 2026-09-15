@@ -23,10 +23,18 @@ export interface JvmRunResult {
   runMs?: number;
 }
 
+/** Coarse progress from the engine — the interpreted JVM can take minutes. */
+export interface JvmProgress {
+  stage: string;
+  detail: string;
+}
+
 export interface JvmRuntime {
   engine: 'teavm' | 'doppio';
   language: 'java' | 'kotlin' | 'scala';
   run(source: string, options?: { input?: string; mainClass?: string }): Promise<JvmRunResult>;
+  /** Subscribe to progress events. Returns an unsubscribe function. */
+  on(event: 'progress', listener: (progress: JvmProgress) => void): () => void;
   stop(): void;
   destroy(): void;
 }
@@ -43,6 +51,8 @@ export interface CreateRuntimeOptions {
   doppioBaseUrl?: string;
   /** Override the TeaVM assets base (compiler.wasm + classlib archives directory). */
   teavmBaseUrl?: string;
+  /** Called with coarse engine progress (useful for the multi-minute Doppio compiles). */
+  onProgress?: (progress: JvmProgress) => void;
 }
 
 // Captured while the <script> tag is still evaluating (currentScript is null later).
@@ -73,8 +83,18 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<JvmR
   let initResolve: ((value: { initMs: number }) => void) | null = null;
   let initReject: ((reason: Error) => void) | null = null;
 
+  const progressListeners = new Set<(progress: JvmProgress) => void>();
+  const emitProgress = (progress: JvmProgress) => {
+    options.onProgress?.(progress);
+    for (const listener of progressListeners) listener(progress);
+  };
+
   worker.onmessage = (e: MessageEvent) => {
     const data = e.data as Record<string, unknown>;
+    if (data.type === 'progress') {
+      emitProgress({ stage: String(data.stage ?? ''), detail: String(data.detail ?? '') });
+      return;
+    }
     if (data.type === 'initialized') {
       initResolve?.({ initMs: data.initMs as number });
       return;
@@ -130,6 +150,13 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<JvmR
           mainClass: runOptions.mainClass,
         });
       });
+    },
+    on(event, listener) {
+      if (event === 'progress') {
+        progressListeners.add(listener);
+        return () => progressListeners.delete(listener);
+      }
+      return () => {};
     },
     stop() {
       if (engine === 'doppio') worker.postMessage({ cmd: 'stop' });

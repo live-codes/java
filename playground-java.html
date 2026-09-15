@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Java in the browser (TeaVM → WebAssembly)</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #14161a;
+        --panel: #1b1e24;
+        --border: #2b3038;
+        --text: #e6e8eb;
+        --dim: #8b93a1;
+        --accent: #e76f00;
+        --ok: #5cc98a;
+        --err: #ff6b6b;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text);
+        font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
+        height: 100vh; display: flex; flex-direction: column;
+      }
+      header {
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+      }
+      h1 { font-size: 14px; margin: 0; font-weight: 600; }
+      h1 span { color: var(--accent); }
+      .grow { flex: 1; }
+      button {
+        font: inherit; font-weight: 600; color: #fff; background: var(--accent);
+        border: 0; border-radius: 6px; padding: 7px 16px; cursor: pointer;
+      }
+      button.secondary { background: #2b3038; color: var(--text); }
+      button:disabled { opacity: 0.5; cursor: default; }
+      #status { color: var(--dim); font-size: 12px; }
+      #status.ok { color: var(--ok); }
+      #status.err { color: var(--err); }
+      .badge { font: 11px/1 var(--mono); padding: 4px 8px; border-radius: 4px; background: #2b3038; color: var(--dim); }
+      .badge.ok { background: rgba(92, 201, 138, 0.15); color: var(--ok); }
+      .badge.err { background: rgba(255, 107, 107, 0.15); color: var(--err); }
+      #duration { color: var(--dim); font-size: 12px; }
+      #progress { padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--dim); }
+      .track { height: 4px; background: #2b3038; border-radius: 2px; overflow: hidden; margin-top: 6px; }
+      #progress-bar { height: 100%; width: 0; background: var(--accent); transition: width 0.2s; }
+      main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+      @media (max-width: 820px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+      section { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+      section + section { border-left: 1px solid var(--border); }
+      .pane-head {
+        padding: 7px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--dim); border-bottom: 1px solid var(--border); background: var(--panel);
+      }
+      textarea {
+        flex: 1; width: 100%; border: 0; resize: none; padding: 12px; background: var(--bg);
+        color: var(--text); font: 13px/1.6 var(--mono); tab-size: 4; outline: none;
+      }
+      .stdin-box { flex: 0 0 26%; min-height: 72px; border-top: 1px solid var(--border); background: #17191e; }
+      .stdin-box::placeholder { color: #4a515c; }
+      .output {
+        flex: 1; overflow: auto; padding: 12px; margin: 0;
+        font: 13px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word;
+      }
+      .out-wrap { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+      #stderr { color: #ffb4a2; }
+      #stderr:empty::before, #stdout:empty::before { content: "—"; color: #3a4049; }
+      .hint { color: var(--dim); font-size: 11px; font-weight: 400; }
+      kbd { font: 11px var(--mono); background: #2b3038; border-radius: 3px; padding: 1px 4px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Java <span>&rarr;</span> WebAssembly, client-side</h1>
+      <div class="grow"></div>
+      <span id="exit-code" class="badge">-</span>
+      <span id="duration"></span>
+      <span id="status">loading toolchain…</span>
+      <button id="clear" class="secondary" type="button">Clear</button>
+      <button id="run" type="button" disabled>Run</button>
+    </header>
+
+    <div id="progress">
+      <span id="progress-text">Downloading the compiler (javac + TeaVM, ~7.7 MB)…</span>
+      <span class="hint">&nbsp;served from this repo; later loads come from cache</span>
+      <div class="track"><div id="progress-bar"></div></div>
+    </div>
+
+    <main>
+      <section>
+        <div class="pane-head">
+          Main.java &nbsp;<span class="hint"><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Enter</kbd> to run</span>
+        </div>
+        <textarea id="editor" spellcheck="false" autocomplete="off">
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
+public class Main {
+  record Point(int x, int y) {}
+
+  public static void main(String[] args) throws Exception {
+    System.out.println("Hello from Java, compiled in your browser");
+
+    var points = java.util.stream.Stream.of(new Point(1, 2), new Point(3, 4))
+        .map(p -> new Point(p.x() * 10, p.y() * 10))
+        .toList();
+    System.out.println("records + streams: " + points);
+
+    BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+    String line = in.readLine();
+    System.out.println("stdin: " + (line == null ? "(nothing)" : line));
+  }
+}
+</textarea>
+        <div class="pane-head">stdin &nbsp;<span class="hint">read with <code>System.in</code></span></div>
+        <textarea id="stdin" class="stdin-box" spellcheck="false" autocomplete="off"
+          placeholder="Program input (optional). The first line is read by the sample above.">hello from stdin</textarea>
+      </section>
+
+      <section class="out-wrap">
+        <div class="pane-head">stdout</div>
+        <pre id="stdout" class="output"></pre>
+        <div class="pane-head">stderr &amp; compiler diagnostics</div>
+        <pre id="stderr" class="output"></pre>
+      </section>
+    </main>
+
+    <script src="./dist/browser-jvm.iife.js"></script>
+    <script>
+      const editor = document.querySelector('#editor');
+      const stdinBox = document.querySelector('#stdin');
+      const runButton = document.querySelector('#run');
+      const clearButton = document.querySelector('#clear');
+      const stdout = document.querySelector('#stdout');
+      const stderr = document.querySelector('#stderr');
+      const status = document.querySelector('#status');
+      const exitCode = document.querySelector('#exit-code');
+      const duration = document.querySelector('#duration');
+      const progress = document.querySelector('#progress');
+      const progressText = document.querySelector('#progress-text');
+      const progressBar = document.querySelector('#progress-bar');
+
+      let runtime = null;
+      let running = false;
+
+      const setStatus = (text, kind) => {
+        status.textContent = text;
+        status.className = kind || '';
+      };
+      const setExit = (code) => {
+        exitCode.textContent = code === null || code === undefined ? '-' : String(code);
+        exitCode.className = 'badge ' + (code === 0 ? 'ok' : code == null ? '' : 'err');
+      };
+
+      (async () => {
+        try {
+          runtime = await BrowserJvm.createRuntime({ engine: 'teavm', language: 'java', baseUrl: './dist/' });
+          progress.hidden = true;
+          setStatus('ready', 'ok');
+          runButton.disabled = false;
+        } catch (error) {
+          progress.hidden = true;
+          setStatus('toolchain failed to load', 'err');
+          stderr.textContent = String((error && error.stack) || error);
+        }
+      })();
+
+      async function run() {
+        if (running || !runtime) return;
+        running = true;
+        runButton.disabled = true;
+        stdout.textContent = '';
+        stderr.textContent = '';
+        setExit(null);
+        duration.textContent = '';
+        setStatus('compiling…');
+
+        const started = performance.now();
+        try {
+          const result = await runtime.run(editor.value, { input: stdinBox.value });
+          const ms = Math.round(performance.now() - started);
+          stdout.textContent = result.stdout || '';
+          stderr.textContent = result.stderr || (result.ok ? '' : result.error || '');
+          setExit(result.exitCode);
+          duration.textContent = ms + ' ms';
+          setStatus(result.ok ? 'done' : 'failed', result.ok ? 'ok' : 'err');
+        } catch (error) {
+          setStatus('error', 'err');
+          stderr.textContent = String((error && error.stack) || error);
+        } finally {
+          running = false;
+          runButton.disabled = false;
+        }
+      }
+
+      runButton.addEventListener('click', run);
+      clearButton.addEventListener('click', () => {
+        stdout.textContent = '';
+        stderr.textContent = '';
+        setExit(null);
+        duration.textContent = '';
+        setStatus(runtime ? 'ready' : 'loading toolchain…', runtime ? 'ok' : '');
+      });
+      document.addEventListener('keydown', (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          event.preventDefault();
+          run();
+        }
+      });
+    </script>
+  </body>
+</html>

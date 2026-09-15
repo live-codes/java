@@ -14,7 +14,7 @@
           engine: 'teavm-javac',
           title: 'TeaVM — <code>teavm-javac</code>: OpenJDK javac + TeaVM AOT in one wasm module',
           notes:
-            'Local vendored artifacts (<code>/vendor/teavm/</code>, 6.4 MB total). javac compiles Java source → class files; TeaVM generates an app wasm; app runs via <code>load(bytes) → exports.main()</code>. Known gap: no stdin.',
+            'Vendored artifacts from our <code>teavm-javac</code> fork (<code>/vendor/teavm/</code>, ~7.7 MB total). javac compiles Java source → class files; TeaVM emits an app wasm; the program runs via <code>load(bytes, { installImports })</code> with stdin/stdout/stderr wired through <code>teavmConsole</code>. This engine is Java-only — Kotlin/Scala sources are listed to record the gap.',
           worker: 'teavm-worker.mjs (module worker)',
           programs: Bench.PROGRAMS.java.concat(Bench.PROGRAMS.kotlin, Bench.PROGRAMS.scala),
         },

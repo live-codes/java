@@ -35,13 +35,19 @@ for (const file of ['dist/browser-jvm.iife.js', 'dist/worker-teavm.js', 'dist/wo
   }
 }
 
-// The TeaVM worker must embed the runtime glue (self-contained classic worker).
+// The TeaVM worker must embed the runtime glue and the stdin/completion wiring.
 const teavmWorker = await readFile(root + 'dist/worker-teavm.js', 'utf8');
-if (!/putcharStdout/.test(teavmWorker)) {
-  console.error('worker-teavm.js does not embed the TeaVM glue');
-  failed = true;
-} else {
-  console.log('ok  worker-teavm.js embeds glue');
+for (const [needle, label] of [
+  ['putcharStdout', 'embeds the TeaVM runtime glue'],
+  ['readStdin', 'wires stdin (teavmConsole.readStdin)'],
+  ['teavm_stopped', 'waits on the teavm_stopped completion flag'],
+]) {
+  if (!teavmWorker.includes(needle)) {
+    console.error(`worker-teavm.js is missing ${needle} — expected it to ${label}`);
+    failed = true;
+  } else {
+    console.log(`ok  worker-teavm.js ${label}`);
+  }
 }
 
 process.exit(failed ? 1 : 0);

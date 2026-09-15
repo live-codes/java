@@ -1,30 +1,17 @@
-/* TeaVM engine — teavm-javac: javac + TeaVM compiler in one WebAssembly module (Apache-2.0). */
+/* TeaVM engine — teavm-javac fork: javac + TeaVM AOT in one WebAssembly module (Apache-2.0).
+ * The fork's runtime classlib implements System.in via the `teavmConsole` imports,
+ * so stdin is a pre-supplied string fed to the program one byte at a time. */
 import { load } from '/vendor/teavm/compiler.wasm-runtime.js';
 
 const BASE = '/vendor/teavm/';
-
-const origLog = console.log.bind(console);
-const origError = console.error.bind(console);
+const RUN_TIMEOUT_MS = 30_000;
 
 let compiler = null;
 let diagnostics = [];
-let capturing = false;
-let captured = { stdout: '', stderr: '' };
-
-// TeaVM-generated apps write via teavmConsole → console.log/error (dynamic lookup).
-console.log = (...args) => {
-  if (capturing) captured.stdout += args.join(' ') + '\n';
-  else origLog(...args);
-};
-console.error = (...args) => {
-  if (capturing) captured.stderr += args.join(' ') + '\n';
-  else origError(...args);
-};
 
 async function init() {
   const teavm = await load(BASE + 'compiler.wasm');
-  const lib = teavm.exports;
-  compiler = lib.createCompiler();
+  compiler = teavm.exports.createCompiler();
   const sdk = new Int8Array(await (await fetch(BASE + 'compile-classlib-teavm.bin')).arrayBuffer());
   const classlib = new Int8Array(await (await fetch(BASE + 'runtime-classlib-teavm.bin')).arrayBuffer());
   compiler.setSdk(sdk);
@@ -49,57 +36,73 @@ async function init() {
   });
 }
 
-async function run(source, mainClass) {
+function formatDiagnostics() {
+  return diagnostics
+    .filter((d) => d.severity === 'error')
+    .map((d) => `${d.fileName ? `${d.fileName}${d.lineNumber ? `:${d.lineNumber}` : ''}: ` : ''}${d.message ?? ''}`)
+    .join('\n');
+}
+
+async function executeProgram(wasm, input) {
+  const stdin = new TextEncoder().encode(input ?? '');
+  let stdinIndex = 0;
+  let stdout = '';
+  let stderr = '';
+
+  const app = await load(wasm, {
+    installImports(imports) {
+      const consoleImports = (imports.teavmConsole ??= {});
+      consoleImports.readStdin = () => (stdinIndex < stdin.length ? stdin[stdinIndex++] : -1);
+      consoleImports.putcharStdout = (code) => {
+        stdout += String.fromCharCode(code & 0xffff);
+      };
+      consoleImports.putcharStderr = (code) => {
+        stderr += String.fromCharCode(code & 0xffff);
+      };
+    },
+  });
+
+  const isStopped = () => {
+    const fn = app.instance.exports['teavm_stopped'];
+    return typeof fn === 'function' ? Boolean(fn()) : false;
+  };
+
+  const t0 = performance.now();
+  let finished = false;
+  app.exports.main([], () => {
+    finished = true;
+  });
+  while (!finished && !isStopped()) {
+    if (performance.now() - t0 > RUN_TIMEOUT_MS) throw new Error(`program did not finish within ${RUN_TIMEOUT_MS} ms`);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  return { stdout, stderr, runMs: performance.now() - t0 };
+}
+
+async function run(source, mainClass, input) {
   const t0 = performance.now();
   compiler.clearSourceFiles();
   compiler.addSourceFile('Main.java', source);
   diagnostics = [];
   const ok = compiler.compile();
   const compileMs = performance.now() - t0;
-  if (!ok) {
-    return { ok: false, compileMs, exitCode: 1, stdout: '', stderr: '', diagnostics: [...diagnostics] };
-  }
+  if (!ok) return { ok: false, compileMs, exitCode: 1, stdout: '', stderr: formatDiagnostics(), diagnostics: [...diagnostics] };
 
   // NB: do NOT call clearOutputFiles() here — it wipes the class files javac
   // just produced; generateWebAssembly consumes those as its input.
   const t1 = performance.now();
-  const genOk = compiler.generateWebAssembly({ outputName: 'app', mainClass });
+  // SIMPLE is the level the fork's fiber-based runtime supports; ADVANCED
+  // generates a module whose completion callback/teavm_stopped never fires.
+  const genOk = compiler.generateWebAssembly({ outputName: 'app', mainClass, optimizationLevel: 'SIMPLE' });
   const generateMs = performance.now() - t1;
   if (!genOk) {
-    return {
-      ok: false,
-      compileMs,
-      generateMs,
-      exitCode: 1,
-      stdout: '',
-      stderr: '',
-      diagnostics: [...diagnostics],
-    };
+    return { ok: false, compileMs, generateMs, exitCode: 1, stdout: '', stderr: formatDiagnostics(), diagnostics: [...diagnostics] };
   }
+
   const bytes = compiler.getWebAssemblyOutputFile('app.wasm');
-
-  const t2 = performance.now();
-  capturing = true;
-  captured = { stdout: '', stderr: '' };
-  try {
-    const app = await load(bytes);
-    app.exports.main([]);
-  } finally {
-    capturing = false;
-  }
-  const runMs = performance.now() - t2;
-
-  return {
-    ok: true,
-    compileMs,
-    generateMs,
-    runMs,
-    exitCode: 0,
-    stdout: captured.stdout,
-    stderr: captured.stderr,
-    diagnostics: [...diagnostics],
-    bytes,
-  };
+  const { stdout, stderr, runMs } = await executeProgram(bytes, input);
+  return { ok: true, compileMs, generateMs, runMs, exitCode: 0, stdout, stderr, diagnostics: [...diagnostics] };
 }
 
 self.onmessage = async (e) => {
@@ -108,8 +111,7 @@ self.onmessage = async (e) => {
     const t0 = performance.now();
     try {
       await init();
-      const sdkBytes = 199668 + 2377497 + 4126432; // pinned artifact sizes
-      self.postMessage({ type: 'initialized', initMs: performance.now() - t0, bytes: sdkBytes });
+      self.postMessage({ type: 'initialized', initMs: performance.now() - t0 });
     } catch (err) {
       self.postMessage({ type: 'init-error', error: String((err && err.message) || err) });
     }
@@ -117,7 +119,7 @@ self.onmessage = async (e) => {
   }
   if (cmd === 'run') {
     try {
-      const result = await run(e.data.source, e.data.mainClass || 'Main');
+      const result = await run(e.data.source, e.data.mainClass || 'Main', e.data.input || '');
       self.postMessage({ type: 'result', ...result });
     } catch (err) {
       self.postMessage({

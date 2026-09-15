@@ -41,6 +41,15 @@ public class Main {
     System.out.println(points);
   }
 }`;
+      const STDIN = `import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
+public class Main {
+  public static void main(String[] args) throws Exception {
+    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    System.out.println("echo: " + br.readLine());
+  }
+}`;
 
       (async () => {
         // TeaVM engine
@@ -52,6 +61,8 @@ public class Main {
             `init+run ${Math.round(performance.now() - t0)}ms\n${r1.output}`);
           const r2 = await teavm.run(FEATURES);
           addCase('teavm modern java', r2.exitCode === 0 && r2.output.includes('Point[x=10, y=20]'), r2.output);
+          const r3 = await teavm.run(STDIN, { input: 'livecodes\n' });
+          addCase('teavm java stdin', r3.exitCode === 0 && r3.output.includes('echo: livecodes'), r3.output);
           teavm.destroy();
         } catch (e) {
           addCase('teavm engine', false, String(e && e.stack || e));

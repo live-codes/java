@@ -19,6 +19,9 @@ const common = {
   target: 'es2018',
   minify: true,
   logLevel: 'info',
+  // The TeaVM runtime glue lazily imports Node builtins under Node only; keep
+  // them external so the browser bundle builds (the branch never runs here).
+  external: ['node:*'],
 };
 
 await build({

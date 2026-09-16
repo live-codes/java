@@ -18,6 +18,9 @@ const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const PORT = Number(process.env.PORT || 8933);
 const BASE = `http://localhost:${PORT}/corpus/`;
 const only = process.argv[2];
+// ONLY=a,b,c runs just those programs (both harnesses read it) — for re-checking failures on the
+// slow Doppio baseline without paying for the whole set.
+const QUERY = process.env.ONLY ? `?only=${encodeURIComponent(process.env.ONLY)}` : '';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const chromePath = process.env.CHROME_PATH || CHROME;
@@ -92,7 +95,7 @@ async function runEngine(pageName, budgetMs) {
       '--no-default-browser-check',
       `--remote-debugging-port=${port}`,
       `--user-data-dir=${profile}`,
-      BASE + pageName,
+      BASE + pageName + QUERY,
     ],
     { stdio: 'ignore' }
   );
@@ -161,10 +164,11 @@ try {
   server.kill();
 }
 
-writeFileSync(join(root, 'corpus/results.json'), JSON.stringify({ teavm, baseline }, null, 2));
+const RESULTS_FILE = process.env.ONLY ? 'corpus/results-only.json' : 'corpus/results.json';
+writeFileSync(join(root, RESULTS_FILE), JSON.stringify({ teavm, baseline }, null, 2));
 
 if (!teavm || !baseline) {
-  console.log('\nWrote corpus/results.json (single engine).');
+  console.log(`\nWrote ${RESULTS_FILE} (single engine).`);
   process.exit(0);
 }
 

@@ -1,0 +1,37 @@
+{
+  "teavm": {
+    "engine": "java-wasm",
+    "initMs": 243,
+    "results": [
+      {
+        "id": "charsequence-impl",
+        "area": "basics",
+        "ok": false,
+        "stdout": "",
+        "error": "Main.java:2: Main.Filler is not abstract and does not override abstract method isEmpty() in java.lang.CharSequence",
+        "exitCode": 1,
+        "wallMs": 60,
+        "compileMs": 60,
+        "generateMs": -1,
+        "runMs": -1
+      }
+    ]
+  },
+  "baseline": {
+    "engine": "baseline-doppio",
+    "initMs": 23908,
+    "results": [
+      {
+        "id": "charsequence-impl",
+        "area": "basics",
+        "ok": true,
+        "stdout": "***** 5 *\n**\n*****,*****\n",
+        "error": "",
+        "exitCode": 0,
+        "wallMs": 6734,
+        "compileMs": 5996,
+        "runMs": 735
+      }
+    ]
+  }
+}

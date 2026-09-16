@@ -1,7 +1,27 @@
 import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { gunzipSync } from 'node:zlib';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+
+// The SDK archive is a gzip-wrapped stream of (u16 nameLen, name, u32 dataLen, data) records.
+function sdkEntry(raw, wanted) {
+  let off = 0;
+  while (off + 6 <= raw.length) {
+    const nameLen = raw.readUInt16BE(off);
+    off += 2;
+    if (off + nameLen + 4 > raw.length) break;
+    const name = raw.toString('utf8', off, off + nameLen);
+    off += nameLen;
+    const dataLen = raw.readUInt32BE(off);
+    off += 4;
+    if (off + dataLen > raw.length) break;
+    if (name === wanted) return raw.subarray(off, off + dataLen);
+    off += dataLen;
+  }
+  return null;
+}
+
 const required = [
   'dist/java-wasm.iife.js',
   'dist/worker-java.js',
@@ -61,6 +81,37 @@ for (const [needle, label] of [
   } else {
     console.log(`ok  java-wasm.iife.js ${label}`);
   }
+}
+
+// The javac SDK has to come from the patched StdlibConverter: TeaVM's internal names must not
+// leak into the API javac reads, or `getClass()` stops resolving. See patches/README.md.
+const sdk = gunzipSync(await readFile(root + 'dist/teavm/compile-classlib-teavm.bin'));
+const objectClass = sdkEntry(sdk, 'java/lang/Object.class');
+if (!objectClass) {
+  console.error('compile-classlib-teavm.bin: java/lang/Object.class is missing');
+  failed = true;
+} else {
+  for (const [needle, want, label] of [
+    ['getClass0', false, 'java/lang/Object declares getClass, not getClass0'],
+    ['getClass', true, 'java/lang/Object declares getClass'],
+  ]) {
+    const present = objectClass.includes(Buffer.from(needle));
+    if (present === want) {
+      console.log(`ok  compile-classlib-teavm.bin ${label}`);
+    } else {
+      console.error(
+        `compile-classlib-teavm.bin: java/lang/Object ${present ? 'has' : 'lacks'} ${needle} — ` +
+          `expected it to ${want ? 'have' : 'lack'} it (unpatched SDK? see patches/README.md)`
+      );
+      failed = true;
+    }
+  }
+}
+if (sdk.includes(Buffer.from('java/util/Map$Entry.class'))) {
+  console.log('ok  compile-classlib-teavm.bin contains java/util/Map$Entry.class');
+} else {
+  console.error('compile-classlib-teavm.bin: java/util/Map$Entry.class is missing');
+  failed = true;
 }
 
 process.exit(failed ? 1 : 0);

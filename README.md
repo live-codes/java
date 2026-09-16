@@ -75,31 +75,38 @@ Returns `{ run(source, { input, mainClass }), on('progress', fn), destroy() }`.
 
 Progress stages are `init` → `compile` → `generate` → `run`.
 
-## javac SDK patch
+## javac SDK bug (upstream fix in `patches/`)
 
-The fork's compiler leaks TeaVM internals into the javac class library it generates, which makes
-ordinary Java fail to compile:
+The fork's `StdlibConverter` ignores metadata that determines the API javac sees, so ordinary Java
+fails to compile:
 
-- methods keep their internal `@Rename`d names — `getClass0` instead of `getClass`, so
-  `getClass()` and `Throwable.getMessage()` do not resolve;
+- `@org.teavm.interop.Rename` is not applied — the SDK contains `getClass0`, not `getClass`, so
+  `getClass()`, `Throwable.getMessage()`, `clone()`, `notify()` do not resolve;
 - `InnerClasses` entries keep their pre-rename owners, so `Map.Entry` does not resolve even though
-  `Map$Entry.class` is present.
+  `java/util/Map$Entry.class` is present;
+- members are emitted twice, so `sb.append(anyObject)` is ambiguous;
+- JDK `default` methods come out abstract, so `implements CharSequence` / `Iterator` demand extra
+  methods;
+- `java.lang.annotation.Annotation` is emitted extending itself, so `@interface` does not compile.
 
-`npm run vendor:teavm` verifies the pinned download and then rewrites the archive in place
-(`scripts/patch-sdk.mjs`): 618 classes, 19 member renames, 2331 `InnerClasses` entries. Renames
-skip constructors and anything that would collide, so no declaration is lost. On the corpus this
-took java-wasm's pass rate from 27/35 to 30/35, with no regressions.
+**The fix is `patches/StdlibConverter.java`** — a drop-in replacement for the fork's file, with the
+guards that matter (never rename `<init>`/`<clinit>`; skip renames that would collide with an
+existing member; emit each member once; take `default`-ness from the platform). It has been built
+with JDK 25 and the resulting SDK archive is committed as `assets/compile-classlib-teavm.bin`;
+`npm run vendor:teavm` copies it (sha256-checked) next to the other fork artifacts. Nothing rewrites
+the archive at vendoring time. Rebuilding the fork's `dist/` would make `assets/` unnecessary. See
+`patches/README.md`.
 
-This is a workaround for a bug that belongs upstream in `StdlibConverter`; it disappears if the
-fork is fixed and the archive rebuilt.
+`scripts/sdk-check.mjs` compiles one snippet per bug above with the fork's compiler in plain Node —
+no browser, about a second — so SDK regressions are caught before they reach the corpus.
 
 ## Corpus test
 
-`corpus/` runs 35 programs through both this package and LiveCodes' current engine (Doppio,
+`corpus/` runs 145 programs through both this package and LiveCodes' current engine (Doppio,
 JDK 8) and diffs the results:
 
 ```bash
-node corpus/run.mjs          # both engines (~15 min); `node corpus/run.mjs teavm` is ~90 s
+node corpus/run.mjs          # both engines (~25 min); `node corpus/run.mjs teavm` is ~2 min
 ```
 
 See `corpus/README.md` for the current numbers and the remaining gaps.
@@ -122,9 +129,9 @@ bundle directly.
 | Artifact | Source | Size |
 |---|---|---|
 | `dist/teavm/compiler.wasm` | `Vsprocessing/teavm-javac@d1514ab`, `dist/teavm-javac/` (TeaVM 0.14.1) | 5.2 MB |
-| `dist/teavm/compile-classlib-teavm.bin` | same | 0.21 MB |
 | `dist/teavm/runtime-classlib-teavm.bin` | same | 2.2 MB |
 | `dist/teavm/compiler.wasm-runtime.js` | same | 16 KB |
+| `dist/teavm/compile-classlib-teavm.bin` | **rebuilt** from that commit with `patches/StdlibConverter.java` (see `patches/README.md`) | 0.21 MB |
 
 ## Licences
 

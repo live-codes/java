@@ -49,6 +49,24 @@ originally explored are documented below because they explain the scope.
 TeaVM itself cannot help with either: it compiles *bytecode* and ships no front end, and the TeaVM
 maintainer has ruled out compiling `scalac` because of the `LazyVals`/`sun.misc.Unsafe` ABI.
 
+## Browser matrix (java-wasm)
+
+`poc/browser-matrix.html` probes the WebAssembly features the toolchain needs (the same
+`wasm:js-string` module teavm-javac uses) and then compiles and runs three programs.
+
+| Engine | Version | JSPI | WasmGC + js-string | engine init | hello | modern Java | stdin |
+|---|---|---|---|---|---|---|---|
+| Chrome | 152.0.7977.83 | ✓ | ✓ | 409 ms | ✓ 767 ms | ✓ 818 ms | ✓ 1682 ms |
+| Edge | 153.0.4234.32 | ✓ | ✓ | 619 ms | ✓ 1400 ms | ✓ 1369 ms | ✓ 1024 ms |
+| Firefox Developer Edition | 156.0 | ✓ | ✓ | 981 ms | ✓ 897 ms | ✓ 895 ms | ✓ 2061 ms |
+| Safari | — | not testable on Windows | | | | | |
+
+All three measured engines expose `WebAssembly.JSTag` / `Suspending` / `promising` and compile the
+GC + js-string probe, so the engine works wherever it was testable. Safari is unverified here
+(it needs macOS); JSPI is reported to have shipped in Safari 27, alongside WasmGC in 18.2+.
+
+Chrome and Edge were driven over CDP, Firefox over WebDriver BiDi (Firefox has no CDP endpoint).
+
 ## Engineering notes
 
 **TeaVM / this engine**
@@ -79,9 +97,10 @@ that still carry TeaVM's internal names, so javac cannot resolve ordinary API:
 - `InnerClasses` entries keep their pre-rename owners, so `Map.Entry` does not resolve even though
   `java/util/Map$Entry.class` is present.
 
-`scripts/patch-sdk.mjs` rewrites the archive at vendoring time (append-only constant-pool edits:
-indexes are stable, so nothing shifts). Constructors and colliding names are skipped. This lifted
-the corpus pass rate from 27/35 to 30/35; the proper fix belongs in `StdlibConverter`.
+Fixed in C, not in JS: `patches/StdlibConverter.java` applies `@Rename` and repairs the
+`InnerClasses`/`EnclosingMethod`/nest attributes inside `StdlibConverter` itself. It has been built
+(`:compiler:generateClassLib`, JDK 25) and the resulting archive is committed as
+`assets/compile-classlib-teavm.bin`, so vendoring just copies it. See `patches/README.md`.
 
 **Doppio (retained for reference — the engine we stopped using)**
 

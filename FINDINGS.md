@@ -353,12 +353,15 @@ behind the `%e`/`%f` paths and is the obvious suspect, but its only dereference 
 pattern one, which passes `new TDecimalFormatSymbols()`. So the null is further in than construction,
 despite `forDigit` appearing in the classlib's own `%e` call sites.
 
-**And the corpus cannot bisect for you as it stands.** Every one of the 15 failing programs records
-`stdout=""` — including ones that print before they trap — so partial output does not survive a
-failure, and `stringformat`'s four statements cannot be told apart from its recorded result. That is
-a one-line fix in `worker-java.ts` (catch around the `main()` call and the wait loop, and return the
-`stdout` accumulated so far with the error) and it would make every future runtime failure
-self-describing, which is worth doing **before** bisecting this cluster by hand.
+**The corpus can bisect for you now.** Failures used to record `stdout=""` whatever the program had
+printed, so every failing program looked as though it died on its first statement. The worker now
+catches a trap around the `main()` call and the wait loop and returns the partial `stdout` with the
+error, which bisected `stringformat` in a single run: it prints `42|   42|42   |00042` and *then*
+traps. So statement 1 is fine, and the fault is in statement 2 —
+`String.format("%.3f|%e|%s|%b", 3.14159, 1234.5, "x", true)`. `%s` and `%b` are exercised elsewhere in
+the corpus and `%,d` (statement 4) is never reached, so this is a float conversion: `%.3f` or `%e`.
+Split that statement before reading any classlib code — and note the earlier `%,d` attribution was a
+guess that this has now excluded.
 
 ### Beyond the class library
 

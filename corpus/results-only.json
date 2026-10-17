@@ -1,19 +1,19 @@
 {
   "teavm": {
     "engine": "java-wasm",
-    "initMs": 1516,
+    "initMs": 340,
     "results": [
       {
-        "id": "regex-groups",
-        "area": "runtime",
-        "ok": true,
-        "stdout": "2026-09-15 y=2026 m=09 start=3\n2025-01-02 y=2025 m=01 start=18\ncount=2\n1a2b\ntrue\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 12036,
-        "compileMs": 658,
-        "generateMs": 11284,
-        "runMs": 33
+        "id": "stringformat",
+        "area": "basics",
+        "ok": false,
+        "stdout": "42|   42|42   |00042\n",
+        "error": "dereferencing a null pointer",
+        "exitCode": 1,
+        "wallMs": 3157,
+        "compileMs": 73,
+        "generateMs": 3052,
+        "runMs": 6
       }
     ]
   },

@@ -273,17 +273,31 @@ async function executeProgram(wasm: Int8Array, input: string) {
 
   const t0 = performance.now();
   let finished = false;
-  exports.main([], () => {
-    finished = true;
-  });
-  while (!finished && !isStopped()) {
-    if (performance.now() - t0 > RUN_TIMEOUT_MS) {
-      throw new Error(`program did not finish within ${RUN_TIMEOUT_MS} ms`);
+  let runError: string | null = null;
+  try {
+    exports.main([], () => {
+      finished = true;
+    });
+    while (!finished && !isStopped()) {
+      if (performance.now() - t0 > RUN_TIMEOUT_MS) {
+        throw new Error(`program did not finish within ${RUN_TIMEOUT_MS} ms`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
-    await new Promise((resolve) => setTimeout(resolve, 0));
+  } catch (err) {
+    // A trap — null dereference, divide by zero, exhausted stack — arrives here as a JS exception,
+    // and there is no Java stack to read instead. Keep whatever the program printed first: without
+    // it a failing program looks exactly like one that printed nothing, which makes bisecting a
+    // runtime failure guesswork.
+    runError = String((err as Error)?.message || err);
   }
 
-  return { stdout, stderr, runMs: performance.now() - t0 };
+  return {
+    stdout,
+    stderr: runError == null ? stderr : `${stderr}${stderr ? '\n' : ''}${runError}`,
+    runMs: performance.now() - t0,
+    error: runError,
+  };
 }
 
 /** Renders compiler diagnostics as text so failures are visible through `stderr`. */
@@ -342,14 +356,14 @@ async function run(source: string, mainClass: string, input: string) {
     };
   }
 
-  const { stdout, stderr, runMs } = await executeProgram(bytes, input);
+  const { stdout, stderr, runMs, error } = await executeProgram(bytes, input);
 
   return {
-    ok: true,
+    ok: error == null,
     compileMs,
     generateMs,
     runMs,
-    exitCode: 0,
+    exitCode: error == null ? 0 : 1,
     stdout,
     stderr,
     diagnostics: [...diagnostics],

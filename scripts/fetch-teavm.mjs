@@ -20,7 +20,6 @@ const BASE = `https://raw.githubusercontent.com/${REPO}/${COMMIT}/dist/teavm-jav
 const CHECKSUMS = {
   'compiler.wasm': 'ea83c69d8efd0a599cf03ea2075ca2769588467de01346a7129accf3c63c674e',
   'compiler.wasm-runtime.js': '4709a64b0b979090bb14999720576d614f13127932109ea3c9638154c04887cc',
-  'runtime-classlib-teavm.bin': 'e952dca904d368daf606f345264b2ce0d4e2173d1e35c96f1617a1df8b917fe5',
 };
 
 // The javac SDK archive is NOT taken from the fork's dist: its StdlibConverter leaks
@@ -30,9 +29,15 @@ const CHECKSUMS = {
 // ambiguous; some JDK `default` methods come out abstract, so `implements CharSequence` fails;
 // and `java.lang.annotation.Annotation` is emitted extending itself, so annotations do not
 // compile). assets/ holds an archive built from the same commit with
-// patches/StdlibConverter.java applied — see patches/README.md to reproduce it.
+// patches/StdlibConverter.java applied — see patches/README.md to reproduce them.
 const SDK = 'compile-classlib-teavm.bin';
-const SDK_SHA256 = '19da15ca32b8f79c7559a3e48b236152f412f6d2ed102c33784b8075768766f8';
+const SDK_SHA256 = '8a754a000e558ba350434a43e0f97ddee78edc320f37e27da7a9339fb10ce777';
+// The runtime class library is rebuilt rather than downloaded too, because it carries the added
+// classlib API (`String.lines()`). patches/ArchiveBuilder.java had to be fixed first: it named
+// entries with the OS separator, so a build on Windows produced an archive TeaVM could not read a
+// single class out of, and every program failed to generate.
+const RUNTIME = 'runtime-classlib-teavm.bin';
+const RUNTIME_SHA256 = '38e0e256c3b1b95e1b7a49a46c14beaa958f89de3294967c63cc67ff35f17090';
 
 const assetsDir = join(fileURLToPath(new URL('..', import.meta.url)), 'assets');
 const outDir = join(fileURLToPath(new URL('..', import.meta.url)), 'vendor', 'teavm');
@@ -60,14 +65,16 @@ for (const name of Object.keys(CHECKSUMS)) {
   console.log(`${name}: ${(buf.length / 1024 / 1024).toFixed(2)} MB`);
 }
 
-const sdkBuf = await readFile(join(assetsDir, SDK));
-const sdkSha = sha256(sdkBuf);
-if (sdkSha !== SDK_SHA256) {
-  console.error(`${SDK}: checksum mismatch\n  expected ${SDK_SHA256}\n  actual   ${sdkSha}`);
-  failed = true;
-} else {
-  await copyFile(join(assetsDir, SDK), join(outDir, SDK));
-  console.log(`${SDK}: ${(sdkBuf.length / 1024).toFixed(0)} KB (from assets/, patched SDK)`);
+for (const [name, expected] of [[SDK, SDK_SHA256], [RUNTIME, RUNTIME_SHA256]]) {
+  const buf = await readFile(join(assetsDir, name));
+  const sha = sha256(buf);
+  if (sha !== expected) {
+    console.error(`${name}: checksum mismatch\n  expected ${expected}\n  actual   ${sha}`);
+    failed = true;
+    continue;
+  }
+  await copyFile(join(assetsDir, name), join(outDir, name));
+  console.log(`${name}: ${(buf.length / 1024).toFixed(0)} KB (from assets/, built with the fork's patches)`);
 }
 
 if (failed) process.exit(1);

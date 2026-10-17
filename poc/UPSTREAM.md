@@ -164,7 +164,7 @@ All compile-time `cannot find symbol`, all verified as genuinely absent from the
 
 | API | Program |
 |---|---|
-| `String.lines()` | `var-textblock`, `text-block-more` |
+| ~~`String.lines()`~~ — **fixed here** | `var-textblock` and `text-block-more` now pass. Recipe: vendor the class into `compiler/src/sharedClasslibEmu/java`, add it to the runtime archive's include list, rebuild both archives — and first fix `ArchiveBuilder`, which named entries `org\teavm\...` on Windows, so TeaVM could not read a single class out of a locally built archive. See `patches/README.md` |
 | `Matcher.results()` | `regex-groups` |
 | `Duration.toSecondsPart()` | `instant-duration` |
 | `Character.UnicodeBlock` | `char-classes` |

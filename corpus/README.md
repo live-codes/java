@@ -29,17 +29,18 @@ Raw results land in `corpus/results.json` (`results-only.json` for a filtered ru
 Programs must print deterministic output — sort maps and sets before printing, or the two engines
 differ for reasons that have nothing to do with correctness.
 
-## Result: 127/145 pass, but **14 of the 145 are regressions**
+## Result: 129/145 pass, but **14 of the 145 are regressions**
 
-java-wasm runs 127 of 145. That headline hides the number that matters for a switch: **14 of those
-18 failures work today on the current engine.** On this corpus that is a 9.7% regression rate.
+java-wasm runs 129 of 145. That headline hides the number that matters for a switch: **14 of those
+16 failures work today on the current engine.** On this corpus that is a 9.7% regression rate.
 
-Six of the regressions the corpus originally found were bugs in the generated javac SDK rather than
-in TeaVM, and are fixed by `patches/StdlibConverter.java` (see `patches/README.md`): `list-deque-queue`
+Seven of the bugs the corpus found were in the fork rather than in TeaVM itself, and are fixed by
+the patches in `patches/` (see `patches/README.md`): `list-deque-queue`
 and `stringbuilder-vs-buffer` (a duplicated `StringBuilder.append(Object)`), `iterable-custom` and
 `charsequence-impl` (`default` methods emitted abstract), `annotation-basic`
-(`java.lang.annotation.Annotation` emitted extending itself), and `recursive-generics` (`@SuppressWarnings`
-crashed the compiler — the trigger was the annotation, not the recursive bound; see `poc/UPSTREAM.md`).
+(`java.lang.annotation.Annotation` emitted extending itself), `recursive-generics` (`@SuppressWarnings`
+crashed the compiler — the trigger was the annotation, not the recursive bound; see `poc/UPSTREAM.md`),
+and `var-textblock`/`text-block-more` (`String.lines()`, which the class library did not implement).
 
 Timings for the whole set: init 0.3–2 s, javac 1–13 s, **wasm generation 51–392 s**, run 0.1–1.3 s.
 The spread is run-to-run variance on one machine (load-dependent), not a spread across programs;
@@ -63,18 +64,17 @@ generation dominates either way.
 | 12 | `file-io` | `Directory does not exist` | no filesystem model (deliberately dropped) |
 
 Every failure above was triaged at compile time, without a browser: `scripts/compile-program.mjs --all`
-compiles all 145 programs with the fork's javac in Node and reports **140 compile, 5 do not** — all
-five are `cannot find symbol` for missing class-library APIs. So every remaining failure is
+compiles all 145 programs with the fork's javac in Node and reports **142 compile, 3 do not** — all
+three are `cannot find symbol` for missing class-library APIs. So every remaining failure is
 TeaVM-side — runtime behaviour (null pointers, unimplemented methods, the divide-by-zero trap), code
 generation (`exceptions-finally` emits invalid wasm), or the class library — and none is an
 SDK-surface bug of the kind `patches/StdlibConverter.java` fixes. Minimal reproductions, root causes
 and the code to change for each of these are written up in `poc/UPSTREAM.md`.
 
-### Fails on both engines (4)
+### Fails on both engines (2)
 
 | Program | Why java-wasm fails | Why Doppio fails |
 |---|---|---|
-| `var-textblock`, `text-block-more` | `String.lines()` absent from the class library | JDK 8 javac: `unclosed string literal` |
 | `instant-duration` | `Duration.toSecondsPart()` absent | JDK 8 has no such method |
 | `regex-groups` | `Matcher.results()` absent | JDK 8 has no such method |
 

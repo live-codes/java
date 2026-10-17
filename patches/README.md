@@ -118,3 +118,32 @@ with elements (`@SuppressWarnings` on a class, a method and a local variable, pl
 `@Deprecated(since = "9")` — the last one is what caught the missing `AnnotationDefault` values). It
 caught the duplicated members, the abstract-default problem, the self-extending `Annotation` and the
 element-less annotations before any of them reached the browser.
+
+## Second patch: `ArchiveBuilder` (and the first class-library addition)
+
+`ArchiveBuilder.java` here is a drop-in replacement for
+`compiler/src/main/java/org/teavm/javac/ArchiveBuilder.java`. It names each archive entry from
+`Path.toString()`, which on Windows yields `org\teavm\classlib\...` — while TeaVM looks entries up
+with `/`. An archive built locally therefore contains no class TeaVM can find, and *every* program
+fails inside `generateWebAssembly` with `dereferencing a null pointer`, `hello` included. The names
+are normalised where they are written (`append`), so a build produces the same archive on any
+platform; on Linux, where the separator already is `/`, the change is a no-op, which is why the
+fork's CI artifacts were always correct and only local builds were broken.
+
+That was the blocker for class-library work: the runtime class library has to be built locally to
+add anything to it. The mechanism is the fork's own — a class in `compiler/src/sharedClasslibEmu/java`
+is compiled into the SDK by `generateClassLib`, and listed by name in `prepareTeaVMClassLib`'s include
+list for the runtime archive. `TScanner` and friends are vendored exactly this way.
+
+**`String.lines()`** is the first gap closed with it. TeaVM 0.14.1 does not implement `lines()`, so the
+SDK did not declare it either and `var-textblock`/`text-block-more` failed at compile time. `TString`
+is vendored into that source set with `lines()` splitting on `\n`, `\r` and `\r\n` and producing no
+trailing empty line, and `org/teavm/classlib/java/lang/TString.class` is in the runtime include list.
+Both programs now compile, generate and run with output byte-for-byte identical to JDK 25.
+
+Take the source from the published `teavm-classlib-<version>-sources.jar`, not the GitHub tag of the
+same version — the tag's `TString` imports `org.teavm.interop.Intrinsified`, which exists in no
+0.14.1 jar.
+
+Both classlib archives therefore have to be vendored: `assets/compile-classlib-teavm.bin` and
+`assets/runtime-classlib-teavm.bin`, each checksum-pinned in `scripts/fetch-teavm.mjs`.

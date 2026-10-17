@@ -1,31 +1,19 @@
 {
   "teavm": {
     "engine": "java-wasm",
-    "initMs": 913,
+    "initMs": 1516,
     "results": [
       {
-        "id": "var-textblock",
-        "area": "modern",
+        "id": "regex-groups",
+        "area": "runtime",
         "ok": true,
-        "stdout": "42 text\nline_one\nline_two_%s\n2 2\n",
+        "stdout": "2026-09-15 y=2026 m=09 start=3\n2025-01-02 y=2025 m=01 start=18\ncount=2\n1a2b\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 44326,
-        "compileMs": 102,
-        "generateMs": 44090,
-        "runMs": 21
-      },
-      {
-        "id": "text-block-more",
-        "area": "modern",
-        "ok": true,
-        "stdout": "4\ntrue\ntrue\n2 xx\n",
-        "error": "",
-        "exitCode": 0,
-        "wallMs": 28526,
-        "compileMs": 188,
-        "generateMs": 27668,
-        "runMs": 135
+        "wallMs": 12036,
+        "compileMs": 658,
+        "generateMs": 11284,
+        "runMs": 33
       }
     ]
   },

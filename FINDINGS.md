@@ -26,10 +26,15 @@ Measured on `corpus/` (145 programs, run in Chrome):
 
 | | |
 |---|---|
-| Pass | **129 / 145** |
-| Compile | **142 / 145** |
+| Pass | **130 / 145** |
+| Compile | **143 / 145** |
 | "Works on Doppio, fails here" (regressions) | **14** |
-| "Fails on both engines" | **2** (`instant-duration`, `regex-groups`) |
+| "Fails on both engines" | **1** (`instant-duration`) |
+
+The two classlib additions below (`String.lines()`, `Matcher.results()`) are each confirmed by
+running the affected programs and diffing their output against JDK 25. The 130 total is those two
+plus the last full run's 129; **re-run `node corpus/run.mjs teavm` to confirm it** rather than
+trusting the arithmetic.
 
 The headline is the regression count, not the pass count: 14 of the 145 work today on the current
 engine and do not work here. That is the number that decides whether this can replace Doppio, and it
@@ -158,7 +163,7 @@ Fixing either means changing the wasm backend and rebuilding `compiler.wasm`, wh
 
 | Missing / broken | Programs |
 |---|---|
-| `Matcher.results()` | `regex-groups` |
+| ~~`Matcher.results()`~~ — **fixed here** | `regex-groups` now passes. `TMatcher` vendored (§5); the body continues from the matcher's current position like the JDK does |
 | `Character.UnicodeBlock` | `char-classes` |
 | `java.time` entirely (`TInstant`/`TDuration` absent) | `instant-duration` |
 | `DecimalFormat` null pointer under `%e` / `%,d` | `stringformat`, `parse-format`, `string-format-more` |
@@ -332,7 +337,6 @@ both archives (~2.5 min), re-vendor, then verify compile + generate + **output a
 
 | Gap | What to vendor | Notes |
 |---|---|---|
-| `Matcher.results()` | `TMatcher` — 696 lines | `results()` is absent; `toMatchResult()` is present (line 546), so the body is a `while (find())` loop collecting `toMatchResult()` and streaming the list. The JDK implementation is lazy, which matters only for infinite inputs. Unblocks `regex-groups`. |
 | `Character.UnicodeBlock` | `TCharacter` — large | the nested type is absent entirely, so it has to be authored, not just carried across. Unblocks `char-classes`. |
 | `java.time` | nothing — all new | `TInstant`/`TDuration` do not exist at all, so this is authoring a `java.time` subset rather than vendoring one. Decide how much of the package to promise before starting. Unblocks `instant-duration`. |
 

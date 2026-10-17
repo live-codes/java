@@ -31,13 +31,13 @@ const CHECKSUMS = {
 // compile). assets/ holds an archive built from the same commit with
 // patches/StdlibConverter.java applied — see patches/README.md to reproduce them.
 const SDK = 'compile-classlib-teavm.bin';
-const SDK_SHA256 = '8a754a000e558ba350434a43e0f97ddee78edc320f37e27da7a9339fb10ce777';
+const SDK_SHA256 = '52dd00fbcf71cc789a10c0c0a81ca7ee0f876fd2b5114c5ccc33109155e1eb9c';
 // The runtime class library is rebuilt rather than downloaded too, because it carries the added
-// classlib API (`String.lines()`). patches/ArchiveBuilder.java had to be fixed first: it named
-// entries with the OS separator, so a build on Windows produced an archive TeaVM could not read a
-// single class out of, and every program failed to generate.
+// classlib API (`String.lines()`, `Matcher.results()`). patches/ArchiveBuilder.java had to be fixed
+// first: it named entries with the OS separator, so a build on Windows produced an archive TeaVM
+// could not read a single class out of, and every program failed to generate.
 const RUNTIME = 'runtime-classlib-teavm.bin';
-const RUNTIME_SHA256 = '38e0e256c3b1b95e1b7a49a46c14beaa958f89de3294967c63cc67ff35f17090';
+const RUNTIME_SHA256 = '191eb2ce732c9b8942f31574210caee939583cf497ca332248815b06f3cc07d7';
 
 const assetsDir = join(fileURLToPath(new URL('..', import.meta.url)), 'assets');
 const outDir = join(fileURLToPath(new URL('..', import.meta.url)), 'vendor', 'teavm');

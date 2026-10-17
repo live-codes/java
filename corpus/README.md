@@ -23,26 +23,29 @@ Raw results land in `corpus/results.json` (`results-only.json` for a filtered ru
 - `run.mjs` — serves this repo, drives both harnesses over CDP, diffs the outputs
 - `../scripts/compile-program.mjs` — compiles any program (or `--all`) with the fork's javac in Node,
   no browser: the fast way to tell an SDK problem from a TeaVM one
+- `../scripts/generate-check.mjs` — the same, and then generates and validates the module: how a
+  code-generation bug (`exceptions-finally`) is reproduced without a browser
 
 Programs must print deterministic output — sort maps and sets before printing, or the two engines
 differ for reasons that have nothing to do with correctness.
 
-## Result: 125/145 pass, but **16 of the 145 are regressions**
+## Result: 127/145 pass, but **14 of the 145 are regressions**
 
-java-wasm runs 125 of 145. That headline hides the number that matters for a switch: **16 of those
-20 failures work today on the current engine.** On this corpus that is an 11.0% regression rate.
+java-wasm runs 127 of 145. That headline hides the number that matters for a switch: **14 of those
+18 failures work today on the current engine.** On this corpus that is a 9.7% regression rate.
 
-Five of the regressions the corpus originally found were bugs in the generated javac SDK rather than
+Six of the regressions the corpus originally found were bugs in the generated javac SDK rather than
 in TeaVM, and are fixed by `patches/StdlibConverter.java` (see `patches/README.md`): `list-deque-queue`
 and `stringbuilder-vs-buffer` (a duplicated `StringBuilder.append(Object)`), `iterable-custom` and
-`charsequence-impl` (`default` methods emitted abstract), and `annotation-basic`
-(`java.lang.annotation.Annotation` emitted extending itself).
+`charsequence-impl` (`default` methods emitted abstract), `annotation-basic`
+(`java.lang.annotation.Annotation` emitted extending itself), and `recursive-generics` (`@SuppressWarnings`
+crashed the compiler — the trigger was the annotation, not the recursive bound; see `poc/UPSTREAM.md`).
 
-Timings for the whole set: init 0.3–0.5 s, javac 1–5 s, **wasm generation 51–175 s**, run under 1 s.
-The ranges are run-to-run variance on one machine, not a spread across programs; generation dominates
-either way.
+Timings for the whole set: init 0.3–2 s, javac 1–13 s, **wasm generation 51–392 s**, run 0.1–1.3 s.
+The spread is run-to-run variance on one machine (load-dependent), not a spread across programs;
+generation dominates either way.
 
-### Regressions — work on Doppio, fail on java-wasm (16)
+### Regressions — work on Doppio, fail on java-wasm (16 found, 14 remain)
 
 | # | Programs | Failure | Cause |
 |---|---|---|---|
@@ -54,18 +57,18 @@ either way.
 | 6 | `exceptions-stacktrace`, `exception-propagation` | null pointer on `getStackTrace()` elements | not implemented |
 | 7 | `char-classes` | `cannot find symbol: UnicodeBlock` | class library gap |
 | 8 | `io-writers` | `Unknown format conversion: n` | `PrintWriter.printf("%n")` unsupported |
-| 9 | `recursive-generics` | `illegal cast` / `Maximum call stack size exceeded` | the compiler **crashes** on `T extends Builder<T>`: `compile()` throws a raw JS `TypeError: Cannot read properties of null (reading 'ctZ')` inside `compiler.js` |
+| 9 | ~~`recursive-generics`~~ — fixed | — | had crashed the compiler: the class library's `TSuppressWarnings` is a method-less stub shadowing the JDK's declaration, so javac had no `value` element to bind and threw a raw JS `TypeError`. Fixed by bug 6 of the SDK patch (`patches/README.md`); see `poc/UPSTREAM.md` |
 | 10 | `enum-map-set` | null pointer in `AbstractStringBuilder.insert` | `EnumSet`/`EnumMap` path |
-| 11 | `interface-diamond` | `(could not fetch message)` | compiles fine, then raises at generate/run; the string comes from `compiler.wasm-runtime.js`, which could not read the message off the thrown Java exception |
+| 11 | ~~`interface-diamond`~~ — fixed | — | passes now (and in five repeat runs), printing `B/C`. The link to the SDK change is *not* established — the archive's bytes changed and TeaVM's generation is not visibly deterministic — so this is unexplained rather than a known fix |
 | 12 | `file-io` | `Directory does not exist` | no filesystem model (deliberately dropped) |
 
 Every failure above was triaged at compile time, without a browser: `scripts/compile-program.mjs --all`
-compiles all 145 programs with the fork's javac in Node and reports **139 compile, 6 do not** — the
-five `cannot find symbol` programs (missing class-library APIs) and `recursive-generics` (compiler
-crash). So every remaining failure is TeaVM-side — runtime behaviour (null pointers, unimplemented
-methods, the divide-by-zero trap), code generation (`exceptions-finally` emits invalid wasm), the
-javac-in-wasm compiler itself, or the class library — and none is an SDK-surface bug of the kind
-`patches/StdlibConverter.java` fixes.
+compiles all 145 programs with the fork's javac in Node and reports **140 compile, 5 do not** — all
+five are `cannot find symbol` for missing class-library APIs. So every remaining failure is
+TeaVM-side — runtime behaviour (null pointers, unimplemented methods, the divide-by-zero trap), code
+generation (`exceptions-finally` emits invalid wasm), or the class library — and none is an
+SDK-surface bug of the kind `patches/StdlibConverter.java` fixes. Minimal reproductions, root causes
+and the code to change for each of these are written up in `poc/UPSTREAM.md`.
 
 ### Fails on both engines (4)
 

@@ -87,7 +87,10 @@ fails to compile:
 - members are emitted twice, so `sb.append(anyObject)` is ambiguous;
 - JDK `default` methods come out abstract, so `implements CharSequence` / `Iterator` demand extra
   methods;
-- `java.lang.annotation.Annotation` is emitted extending itself, so `@interface` does not compile.
+- `java.lang.annotation.Annotation` is emitted extending itself, so `@interface` does not compile;
+- annotations are emitted with no elements — `java.lang.SuppressWarnings` has no `value()` — so javac
+  dies with a raw `TypeError` (no diagnostic at all) on any use of `@SuppressWarnings`, and
+  `@Deprecated(since = "9")` fails the same way.
 
 **The fix is `patches/StdlibConverter.java`** — a drop-in replacement for the fork's file, with the
 guards that matter (never rename `<init>`/`<clinit>`; skip renames that would collide with an

@@ -135,6 +135,22 @@ public class Main {
   }
 }`,
   },
+  {
+    name: 'annotations with elements (@SuppressWarnings, @Deprecated)',
+    source: `@SuppressWarnings("unchecked")
+public class Main {
+  @Deprecated(since = "9")
+  @SuppressWarnings("rawtypes")
+  static int legacy(java.util.List items) { return items.size(); }
+
+  public static void main(String[] args) {
+    @SuppressWarnings("unchecked")
+    java.util.List<String> list = new java.util.ArrayList<>();
+    list.add("a");
+    System.out.println(legacy(list) + " " + list.get(0));
+  }
+}`,
+  },
 ];
 
 let failures = 0;

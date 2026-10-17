@@ -68,6 +68,9 @@ public class StdlibConverter extends ClassVisitor {
     boolean visible;
     String className;
     private boolean isInterface;
+    private boolean isAnnotation;
+    /** {@code name+descriptor} of every method this class has emitted. */
+    private final Set<String> declaredMethods = new LinkedHashSet<>();
     private final Map<String, Set<String>> visibleOwners;
     private final Map<String, String> renameTargets;
     /** Members this class has already emitted, so an input that repeats one does not duplicate it. */
@@ -102,6 +105,7 @@ public class StdlibConverter extends ClassVisitor {
         visible = true;
         className = name;
         isInterface = (access & Opcodes.ACC_INTERFACE) != 0;
+        isAnnotation = (access & Opcodes.ACC_ANNOTATION) != 0;
         if (superName != null) {
             superName = rename(superName);
         }
@@ -200,6 +204,7 @@ public class StdlibConverter extends ClassVisitor {
                 exceptions[i] = rename(exceptions[i]);
             }
         }
+        declaredMethods.add(name + desc);
         return new MethodVisitorImpl(super.visitMethod(access, name, desc, signature, exceptions));
     }
 
@@ -278,6 +283,68 @@ public class StdlibConverter extends ClassVisitor {
             // Not in this JDK (TeaVM ships a few java.* classes of its own) — leave the flags alone.
         }
         return result;
+    }
+
+    /**
+     * Gives an annotation the elements the platform JDK declares for it.
+     *
+     * <p>The class library's annotation stubs are markers: TeaVM's {@code TSuppressWarnings} declares
+     * no {@code value()}, so the SDK's {@code java.lang.SuppressWarnings} has no elements either.
+     * javac resolves {@code @SuppressWarnings("unchecked")} against the SDK, finds no element to bind
+     * the value to, and dies with a raw {@code TypeError} inside the compiler rather than reporting
+     * anything — any program that uses the annotation fails, with no diagnostic.
+     *
+     * <p>Annotation elements are declarations: they carry compile-time metadata and are never invoked
+     * at runtime, so taking the platform's list here cannot make a call that then fails at runtime.
+     * For the same reason only annotations are filled in this way — adding the platform's methods to
+     * an ordinary class {@code T}-stub would turn today's compile-time "cannot find symbol" into a
+     * runtime failure.
+     *
+     * <p>The platform's class file is copied from rather than reflected over, so an element arrives
+     * with everything it carries — {@code @Deprecated} needs {@code since()}'s and
+     * {@code forRemoval()}'s default values, which live in the {@code AnnotationDefault} attribute
+     * and without which javac rejects {@code @Deprecated(since = "9")}.
+     */
+    @Override
+    public void visitEnd() {
+        if (visible && isAnnotation && className != null && className.startsWith("java/")) {
+            copyPlatformElements();
+        }
+        super.visitEnd();
+    }
+
+    private void copyPlatformElements() {
+        byte[] platform = platformClassBytes(className);
+        if (platform == null) {
+            return;
+        }
+        // The visitor has no delegate, so only visitMethod does anything: class-level annotations
+        // stay as the class library declared them.
+        new ClassReader(platform).accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String desc, String signature,
+                    String[] exceptions) {
+                if (name.equals("<init>") || name.equals("<clinit>")
+                        || declaredMethods.contains(name + desc)) {
+                    return null;
+                }
+                // A plain MethodVisitor with a delegate forwards every call — including
+                // AnnotationDefault — onto the class being written.
+                return new MethodVisitor(Opcodes.ASM9,
+                        StdlibConverter.super.visitMethod(access, name, desc, null, null)) {
+                };
+            }
+        }, ClassReader.SKIP_CODE | ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
+    }
+
+    private static byte[] platformClassBytes(String className) {
+        try (InputStream in = ClassLoader.getPlatformClassLoader()
+                .getResourceAsStream(className + ".class")) {
+            return in != null ? in.readAllBytes() : null;
+        } catch (IOException e) {
+            // Not in this JDK (TeaVM ships a few java.* classes of its own) — leave the stub alone.
+            return null;
+        }
     }
 
     @Override

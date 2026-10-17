@@ -32,7 +32,7 @@ const CHECKSUMS = {
 // compile). assets/ holds an archive built from the same commit with
 // patches/StdlibConverter.java applied — see patches/README.md to reproduce it.
 const SDK = 'compile-classlib-teavm.bin';
-const SDK_SHA256 = 'b9fe6db1ff8da715fa807869f54a93106da7e2045fc9f4e961a1a8c17eeccbb9';
+const SDK_SHA256 = '19da15ca32b8f79c7559a3e48b236152f412f6d2ed102c33784b8075768766f8';
 
 const assetsDir = join(fileURLToPath(new URL('..', import.meta.url)), 'assets');
 const outDir = join(fileURLToPath(new URL('..', import.meta.url)), 'vendor', 'teavm');

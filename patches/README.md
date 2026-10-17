@@ -46,7 +46,16 @@ for interfaces, so the archive contains
 `@interface` in user code then fails with *"cyclic inheritance involving
 java.lang.annotation.Annotation"*.
 
-Measured on the corpus in `corpus/`: bugs 1–2 fail 4 of 35 ordinary programs, bugs 3–5 another 5.
+**6. The class library's annotation stubs have no elements.** TeaVM declares its own annotations as
+markers — `TSuppressWarnings` declares no `value()` — and the converter emits that as
+`java.lang.SuppressWarnings`, so the SDK's annotation has no elements either. javac resolves
+`@SuppressWarnings("unchecked")` against the SDK, finds no element to bind the value to, and dies
+with a raw `TypeError` inside the compiler instead of reporting anything: *any* program that uses
+`@SuppressWarnings` — on a class, a method or a local variable — fails with no diagnostic at all.
+`@Deprecated(since = "…")` is affected the same way, since the JDK's `@Deprecated` has elements too.
+
+Measured on the corpus in `corpus/`: bugs 1–2 fail 4 of 35 ordinary programs, bugs 3–5 another 5,
+and bug 6 crashes the compiler on 1 more.
 
 ## The fix
 
@@ -66,6 +75,13 @@ Measured on the corpus in `corpus/`: bugs 1–2 fail 4 of 35 ordinary programs, 
   once.
 - **Drop a superinterface that renames to the class itself** (`removeSelfType`), the same rule the
   code already applied to a superclass.
+- **Give an annotation the platform's elements** (`copyPlatformElements`): the stubs are markers, so
+  the SDK's annotations are missing theirs. The element methods are copied from the platform's own
+  class file rather than re-declared, so everything they carry comes with them — `@Deprecated`'s
+  `since()` and `forRemoval()` are useless without their `AnnotationDefault` values. Only annotations
+  are filled in: their elements are compile-time metadata that no runtime call can reach, whereas
+  adding the platform's methods to an ordinary `T`-stub would turn today's compile-time
+  "cannot find symbol" into a runtime failure.
 
 Nothing else changes: the same classes are included/excluded, members keep their access filtering,
 and the archive format is untouched.
@@ -96,7 +112,9 @@ vendored archive:
 TEAVM_JAVAC_DIST=/path/to/teavm-javac/dist/teavm-javac node scripts/sdk-check.mjs
 ```
 
-Six checks: `@Rename` (`getClass`/`getMessage`/`clone`), `Map.Entry`, `@interface` declarations,
-`implements CharSequence`, `implements Iterator`, and `StringBuilder.append(Object)`. It caught the
-duplicated members, the abstract-default problem and the self-extending `Annotation` before any of
-them reached the browser.
+Seven checks: `@Rename` (`getClass`/`getMessage`/`clone`), `Map.Entry`, `@interface` declarations,
+`implements CharSequence`, `implements Iterator`, `StringBuilder.append(Object)`, and annotations
+with elements (`@SuppressWarnings` on a class, a method and a local variable, plus
+`@Deprecated(since = "9")` — the last one is what caught the missing `AnnotationDefault` values). It
+caught the duplicated members, the abstract-default problem, the self-extending `Annotation` and the
+element-less annotations before any of them reached the browser.

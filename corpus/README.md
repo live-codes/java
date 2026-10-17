@@ -25,14 +25,22 @@ Raw results land in `corpus/results.json` (`results-only.json` for a filtered ru
   no browser: the fast way to tell an SDK problem from a TeaVM one
 - `../scripts/generate-check.mjs` — the same, and then generates and validates the module: how a
   code-generation bug (`exceptions-finally`) is reproduced without a browser
+- `../scripts/run-program.mjs` — the same again, and then **runs** the program in Node and prints its
+  stdout, with `--jdk` to run the same source on the local JDK and diff the two. Turns "does it run"
+  into "does it match", without a browser
 
 Programs must print deterministic output — sort maps and sets before printing, or the two engines
 differ for reasons that have nothing to do with correctness.
 
-## Result: 130/145 pass, but **14 of the 145 are regressions**
+## Result: 134/145 pass, but **10 of the 145 are regressions**
 
-java-wasm runs 130 of 145. That headline hides the number that matters for a switch: **14 of those
-15 failures work today on the current engine.** On this corpus that is a 9.7% regression rate.
+java-wasm runs 134 of 145. That headline hides the number that matters for a switch: **10 of those
+11 failures work today on the current engine.** On this corpus that is a 6.9% regression rate.
+
+The last four closed were `stringformat`, `parse-format` and `string-format-more` (one bug: every
+`DecimalFormat` clones its `DecimalFormatSymbols`, and `Object.clone()` produces an object with no
+vtable under this WasmGC backend, so the first virtual call on the copy trapped — see `FINDINGS.md`
+§4b) and `io-writers` (`%n` was not implemented).
 
 Eight of the bugs the corpus found were in the fork rather than in TeaVM itself, and are fixed by
 the patches in `patches/` (see `patches/README.md`): `list-deque-queue`
@@ -47,18 +55,18 @@ Timings for the whole set: init 0.3–2 s, javac 1–13 s, **wasm generation 51�
 The spread is run-to-run variance on one machine (load-dependent), not a spread across programs;
 generation dominates either way.
 
-### Regressions — work on Doppio, fail on java-wasm (16 found, 14 remain)
+### Regressions — work on Doppio, fail on java-wasm (16 found, 10 remain)
 
 | # | Programs | Failure | Cause |
 |---|---|---|---|
-| 1 | `stringformat`, `parse-format`, `string-format-more` | null pointer under `%e` / `%,d` | TeaVM runtime bug; not `forDigit`'s dereference, which every constructor initialises — see `FINDINGS.md` §9 |
+| 1 | ~~`stringformat`, `parse-format`, `string-format-more`~~ — fixed | — | every `DecimalFormat` clones its `DecimalFormatSymbols`; `Object.clone()` gives the copy no vtable under this WasmGC backend, so the first virtual call on it trapped. Worked around in the class library (§4b/§5 of `FINDINGS.md`) |
 | 2 | `reflection`, `reflection-members` | `NoSuchMethodException` | TeaVM reflection is a declared subset |
 | 3 | `exceptions` | wasm traps on integer divide-by-zero | no `ArithmeticException` |
 | 4 | `exceptions-finally` | `expected 1 elements on the stack for fallthru` | `try { return } finally { return }` compiles to invalid wasm |
 | 5 | `exceptions-suppressed` | null pointer in `Throwable.addSuppressed` | not implemented |
 | 6 | `exceptions-stacktrace`, `exception-propagation` | null pointer on `getStackTrace()` elements | not implemented |
 | 7 | `char-classes` | `cannot find symbol: UnicodeBlock` | class library gap |
-| 8 | `io-writers` | `Unknown format conversion: n` | `PrintWriter.printf("%n")` unsupported |
+| 8 | ~~`io-writers`~~ — fixed | — | `PrintWriter.printf("%n")` was `Unknown format conversion: n`; `%n` added to the class library's `TFormatter` |
 | 9 | ~~`recursive-generics`~~ — fixed | — | had crashed the compiler: the class library's `TSuppressWarnings` is a method-less stub shadowing the JDK's declaration, so javac had no `value` element to bind and threw a raw JS `TypeError`. Fixed by bug 6 of the SDK patch (`patches/README.md`); see `poc/UPSTREAM.md` |
 | 10 | `enum-map-set` | null pointer in `AbstractStringBuilder.insert` | `EnumSet`/`EnumMap` path |
 | 11 | ~~`interface-diamond`~~ — fixed | — | passes now (and in five repeat runs), printing `B/C`. The link to the SDK change is *not* established — the archive's bytes changed and TeaVM's generation is not visibly deterministic — so this is unexplained rather than a known fix |
@@ -98,7 +106,7 @@ wrong: `interfaces` throws `NullPointerException` where java-wasm prints the rig
 
 ## Caveat
 
-145 hand-written programs still only sample the API, and they were written to probe gaps, so 11.0%
+145 hand-written programs still only sample the API, and they were written to probe gaps, so 6.9%
 is not a prediction of the real-world rate. It is measured rather than inferred — and the
-regressions cluster in exception handling, string formatting and reflection, which ordinary
+remaining regressions cluster in exception handling and reflection, which ordinary
 beginner-to-intermediate Java does use.

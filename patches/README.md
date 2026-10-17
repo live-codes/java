@@ -147,3 +147,31 @@ same version — the tag's `TString` imports `org.teavm.interop.Intrinsified`, w
 
 Both classlib archives therefore have to be vendored: `assets/compile-classlib-teavm.bin` and
 `assets/runtime-classlib-teavm.bin`, each checksum-pinned in `scripts/fetch-teavm.mjs`.
+
+## The class-library additions
+
+Each lives in `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...`, which `generateClassLib`
+compiles into the SDK, and is listed by name in `prepareTeaVMClassLib`'s include list
+(`compiler/build.gradle`) so the runtime archive carries it too. The header comment of each addition
+says `Fork addition:`, against the day a TeaVM bump means re-syncing it against a new sources jar.
+
+| Class | Change |
+|---|---|
+| `java/lang/TString` | `lines()` added — splits on `\n`, `\r` and `\r\n`, no trailing empty line |
+| `java/util/regex/TMatcher` | `results()` added — continues from the matcher's current position, like the JDK |
+| `java/text/TDecimalFormatSymbols` | `clone()` copies its own fields explicitly instead of `super.clone()` |
+| `java/util/TFormatter` | `%e`/`%E` and `%n` conversions added |
+
+`TDecimalFormatSymbols.clone()` is a workaround, not a missing API: `Object.clone()` returns an object
+with no vtable under the WasmGC backend, so the first virtual call on the copy traps with
+`dereferencing a null pointer`. Every `DecimalFormat` clones its symbols on construction, which is what
+broke `String.format("%.3f", …)` in `DecimalFormat.forDigit` — see `FINDINGS.md` §4b for the
+measurements. A plain virtual `clone()` on a class that does not override it works, so the trigger is
+`super.clone()`; the same bug is worth suspecting wherever a report says cloned *elements* are null.
+
+`TFormatter`'s `%e`/`%E` are built from a `TDecimalFormat` exponent pattern (`0.000000E00`) plus an
+explicit exponent sign — TeaVM's `TDecimalFormat` prints no sign for a non-negative exponent, and the
+JDK always does. Verified against JDK 25 for `%e`, `%.2e`, `%.0e`, `%E`, `%+e`, `%12.3e`, negative,
+sub-normal and zero arguments (`stringformat`, `parse-format`, `string-format-more`). `%n` uses
+`System.lineSeparator()`, which is `"\n"` here — `io-writers` prints `chars=11` where a *Windows* JDK
+prints 13, because the JDK there emits `\r\n`; the browser target wants `\n`.

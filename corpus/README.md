@@ -51,7 +51,7 @@ generation dominates either way.
 
 | # | Programs | Failure | Cause |
 |---|---|---|---|
-| 1 | `stringformat`, `parse-format`, `string-format-more` | null pointer in `DecimalFormat.forDigit` | TeaVM runtime bug |
+| 1 | `stringformat`, `parse-format`, `string-format-more` | null pointer under `%e` / `%,d` | TeaVM runtime bug; not `forDigit`'s dereference, which every constructor initialises — see `FINDINGS.md` §9 |
 | 2 | `reflection`, `reflection-members` | `NoSuchMethodException` | TeaVM reflection is a declared subset |
 | 3 | `exceptions` | wasm traps on integer divide-by-zero | no `ArithmeticException` |
 | 4 | `exceptions-finally` | `expected 1 elements on the stack for fallthru` | `try { return } finally { return }` compiles to invalid wasm |

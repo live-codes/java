@@ -340,8 +340,18 @@ both archives (~2.5 min), re-vendor, then verify compile + generate + **output a
 | `java.time` | nothing — all new | `TInstant`/`TDuration` do not exist at all, so this is authoring a `java.time` subset rather than vendoring one. Decide how much of the package to promise before starting. Unblocks `instant-duration`. |
 
 The remaining runtime faults in §4c (`DecimalFormat`, `Throwable.getStackTrace`,
-`EnumSet`/`EnumMap`, `printf("%n")`) are bugs rather than absences: each needs its failing program
-reduced first, and they sit in larger classes.
+`EnumSet`/`EnumMap`, `printf("%n")`) are bugs rather than absences, and they are harder than the
+additions for one reason: **a TeaVM trap reports a wasm function index, not a Java stack frame**, so
+there is nothing to read off the failure. `DecimalFormat` is the largest cluster — three programs
+(`stringformat`, `parse-format`, `string-format-more`), all regressions, so closing it does more for
+the swap decision than either classlib addition did. The way in is to **bisect the program**: cut it
+down until the trap stops, then read the classlib path that construct exercises.
+
+Already ruled out for `DecimalFormat`: `TDecimalFormat.forDigit` (line 1157) is the digit renderer
+behind the `%e`/`%f` paths and is the obvious suspect, but its only dereference is
+`symbols.getZeroDigit()`, and every constructor sets `symbols` — the no-arg one delegates to the
+pattern one, which passes `new TDecimalFormatSymbols()`. So the null is further in than construction,
+despite `forDigit` appearing in the classlib's own `%e` call sites.
 
 ### Beyond the class library
 

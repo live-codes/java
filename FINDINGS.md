@@ -322,8 +322,26 @@ the regression count did not, and the numbers in §1 are updated.
 
 ## 9. Open work
 
-- **14 regressions** block a straight swap (§1). Most of §4c is reachable with the §5 recipe; §4b is
-  not, without Binaryen and a codegen patch.
+**The 14 regressions block a straight swap** (§1). Most of §4c is reachable with the §5 recipe; the
+code-generation faults in §4b are not, without Binaryen and a codegen patch.
+
+### Next class-library gaps, scoped
+
+Each needs the §5 recipe — vendor the class, add the API, list it for the runtime archive, rebuild
+both archives (~2.5 min), re-vendor, then verify compile + generate + **output against the JDK**.
+
+| Gap | What to vendor | Notes |
+|---|---|---|
+| `Matcher.results()` | `TMatcher` — 696 lines | `results()` is absent; `toMatchResult()` is present (line 546), so the body is a `while (find())` loop collecting `toMatchResult()` and streaming the list. The JDK implementation is lazy, which matters only for infinite inputs. Unblocks `regex-groups`. |
+| `Character.UnicodeBlock` | `TCharacter` — large | the nested type is absent entirely, so it has to be authored, not just carried across. Unblocks `char-classes`. |
+| `java.time` | nothing — all new | `TInstant`/`TDuration` do not exist at all, so this is authoring a `java.time` subset rather than vendoring one. Decide how much of the package to promise before starting. Unblocks `instant-duration`. |
+
+The remaining runtime faults in §4c (`DecimalFormat`, `Throwable.getStackTrace`,
+`EnumSet`/`EnumMap`, `printf("%n")`) are bugs rather than absences: each needs its failing program
+reduced first, and they sit in larger classes.
+
+### Beyond the class library
+
 - **LiveCodes wiring**: not started. `vendors.ts` + `lang-java-script.ts`, keeping the
   `livecodes.java.*` contract. Until then this is a package, not an engine a user can select.
 - **Publishing**: `@live-codes/java-wasm` is version `0.0.1` and unpublished. Decide the SDK-patch

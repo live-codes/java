@@ -31,10 +31,9 @@ Measured on `corpus/` (145 programs, run in Chrome):
 | "Works on Doppio, fails here" (regressions) | **14** |
 | "Fails on both engines" | **1** (`instant-duration`) |
 
-The two classlib additions below (`String.lines()`, `Matcher.results()`) are each confirmed by
-running the affected programs and diffing their output against JDK 25. The 130 total is those two
-plus the last full run's 129; **re-run `node corpus/run.mjs teavm` to confirm it** rather than
-trusting the arithmetic.
+Measured on a full run, and the two class-library additions below (`String.lines()`,
+`Matcher.results()`) are separately confirmed by diffing the affected programs' output against JDK 25
+— `regex-groups`, `var-textblock` and `text-block-more` all pass.
 
 The headline is the regression count, not the pass count: 14 of the 145 work today on the current
 engine and do not work here. That is the number that decides whether this can replace Doppio, and it

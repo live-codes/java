@@ -1,19 +1,19 @@
 {
   "teavm": {
     "engine": "java-wasm",
-    "initMs": 340,
+    "initMs": 486,
     "results": [
       {
-        "id": "stringformat",
+        "id": "zz-probe-float",
         "area": "basics",
         "ok": false,
-        "stdout": "42|   42|42   |00042\n",
+        "stdout": "",
         "error": "dereferencing a null pointer",
         "exitCode": 1,
-        "wallMs": 3157,
-        "compileMs": 73,
-        "generateMs": 3052,
-        "runMs": 6
+        "wallMs": 3289,
+        "compileMs": 129,
+        "generateMs": 3119,
+        "runMs": 9
       }
     ]
   },

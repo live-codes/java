@@ -360,8 +360,13 @@ error, which bisected `stringformat` in a single run: it prints `42|   42|42   |
 traps. So statement 1 is fine, and the fault is in statement 2 —
 `String.format("%.3f|%e|%s|%b", 3.14159, 1234.5, "x", true)`. `%s` and `%b` are exercised elsewhere in
 the corpus and `%,d` (statement 4) is never reached, so this is a float conversion: `%.3f` or `%e`.
-Split that statement before reading any classlib code — and note the earlier `%,d` attribution was a
-guess that this has now excluded.
+Split that statement before reading any classlib code. A probe did exactly that — a leading float
+conversion, a marker line, then a scientific one — and it trapped with **empty stdout**, so the first
+conversion is where it dies: the precision float, not the scientific one. One caveat: an empty stdout
+does not by itself separate "traps on that call" from "traps before `main`", so print a line ahead of
+the conversion to close it. Every attribution this cluster has had so far has been wrong (the grouped
+integer, then the scientific format), which is the argument for running a probe rather than reading
+code.
 
 ### Beyond the class library
 

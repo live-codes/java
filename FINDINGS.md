@@ -366,7 +366,19 @@ conversion is where it dies: the precision float, not the scientific one. One ca
 does not by itself separate "traps on that call" from "traps before `main`", so print a line ahead of
 the conversion to close it. Every attribution this cluster has had so far has been wrong (the grouped
 integer, then the scientific format), which is the argument for running a probe rather than reading
-code.
+code. Third attribution, first one measured.
+
+**And reading the float path moves the suspect out of `TDecimalFormat` entirely.** `TFormatter`'s
+float branch is the only code that constructs a `TDecimalFormat`, and its first statement is
+`new TDecimalFormat()` (TFormatter line 277), whose no-arg constructor resolves a pattern via
+`CLDRHelper.resolveNumberFormat(language, country)` →
+`resolveFormatSymbols(getNumberFormatMap(), language, country)` — and **`getNumberFormatMap()` is
+`private static native ResourceMap<StringResource>`**. A classlib native is given its body by TeaVM's
+own classlib build rather than by this source, so if that body is missing or the map resolves to
+null, the pattern is null, `applyPattern(null)` traps, and nothing prints — which is the shape of the
+failure exactly. The next check therefore belongs in the runtime archive, not in the formatter:
+whether the implementation of the four `CLDRHelper` natives (`getNumberFormatMap`,
+`getPercentFormatMap`, `getCurrencyFormatMap`, `getDateTimeFormatMap`) is actually linked.
 
 ### Beyond the class library
 

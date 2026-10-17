@@ -161,6 +161,14 @@ says `Fork addition:`, against the day a TeaVM bump means re-syncing it against 
 | `java/util/regex/TMatcher` | `results()` added — continues from the matcher's current position, like the JDK |
 | `java/text/TDecimalFormatSymbols` | `clone()` copies its own fields explicitly instead of `super.clone()` |
 | `java/util/TFormatter` | `%e`/`%E` and `%n` conversions added |
+| `java/lang/TThrowable` | `getSuppressed`/`addSuppressed` tolerate a null `suppressed` field |
+
+`TThrowable`'s `suppressed` field is declared `= new TThrowable[0]`, but the initializer never runs:
+TeaVM renames the real constructor to `fakeInit` and constructs through the `@Rename("<init>")`
+`init(…)` methods, so nothing executes the initializer. Both `getSuppressed0()` and `addSuppressed()`
+dereferenced the field and trapped — `exceptions-suppressed` (try-with-resources with two failing
+`close()`s) hit `addSuppressed` on the very first resource. The accessors now create the array lazily,
+which is also how the JDK behaves.
 
 `TDecimalFormatSymbols.clone()` is a workaround, not a missing API: `Object.clone()` returns an object
 with no vtable under the WasmGC backend, so the first virtual call on the copy traps with

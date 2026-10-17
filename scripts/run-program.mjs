@@ -25,7 +25,7 @@ if (!compilerDir) {
 }
 
 const args = process.argv.slice(2);
-const flags = { file: null, input: '', jdk: false, keep: false, trace: false };
+const flags = { file: null, input: '', jdk: false, keep: false, trace: false, emit: null, listOutputs: false };
 const positional = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -35,6 +35,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--keep') flags.keep = true;
   else if (a === '--trace') flags.trace = true;
   else if (a === '--emit') flags.emit = args[++i];
+  else if (a === '--list-outputs') flags.listOutputs = true;
   else positional.push(a);
 }
 
@@ -108,6 +109,10 @@ const workDir = mkdtempSync(join(tmpdir(), 'java-wasm-run-'));
 const wasmPath = join(workDir, 'app.wasm');
 writeFileSync(wasmPath, bytes);
 if (flags.emit) writeFileSync(flags.emit, bytes);
+if (flags.listOutputs) {
+  const list = typeof compiler.listWebAssemblyOutputFiles === 'function' ? compiler.listWebAssemblyOutputFiles() : [];
+  console.log(`outputs: ${Array.from(list).join(', ') || '(none reported)'}`);
+}
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -151,6 +156,11 @@ let stdinIndex = 0;
 let stdout = '';
 let stderr = '';
 const app = await load(wasmPath, {
+  stackDeobfuscator: {
+    enabled: true,
+    infoLocation: 'embedded',
+    path: join(compilerDir, 'compiler.wasm-deobfuscator.wasm'),
+  },
   installImports(imports) {
     const consoleImports = (imports.teavmConsole ??= {});
     consoleImports.readStdin = () => (stdinIndex < stdin.length ? stdin[stdinIndex++] : -1);

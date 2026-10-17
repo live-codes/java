@@ -20,6 +20,12 @@ const BASE = `https://raw.githubusercontent.com/${REPO}/${COMMIT}/dist/teavm-jav
 const CHECKSUMS = {
   'compiler.wasm': 'ea83c69d8efd0a599cf03ea2075ca2769588467de01346a7129accf3c63c674e',
   'compiler.wasm-runtime.js': '4709a64b0b979090bb14999720576d614f13127932109ea3c9638154c04887cc',
+  // Generic stack-trace deobfuscator. It reads the debug info a generated module carries *embedded*
+  // (the fork always emits it — `WasmDebugInfoLocation.EMBEDDED` in Compiler.java), so the same 40 KB
+  // module serves every app. Without it `Throwable.getStackTrace()` returns TeaVM's stand-in frames
+  // (`Throwable$FakeClass.fakeMethod`); with it enabled but no module to load, the frames come back
+  // with null names and crash user code that reads them.
+  'compiler.wasm-deobfuscator.wasm': '93ea5fb6b84e32946bfe682178f1fa28972c3486f543a16bd0dbc3e4fba8160d',
 };
 
 // The javac SDK archive is NOT taken from the fork's dist: its StdlibConverter leaks
@@ -31,13 +37,13 @@ const CHECKSUMS = {
 // compile). assets/ holds an archive built from the same commit with
 // patches/StdlibConverter.java applied — see patches/README.md to reproduce them.
 const SDK = 'compile-classlib-teavm.bin';
-const SDK_SHA256 = '50803c0568d493145bbcd928d2ff0eb8a6ed8d1b16ca9ebf7db84d06cc051a7d';
+const SDK_SHA256 = '5d217a2f283e60ef0930d612166c605cec44afa67fecc15be8e6d300c1269aee';
 // The runtime class library is rebuilt rather than downloaded too, because it carries the added
 // classlib API (`String.lines()`, `Matcher.results()`). patches/ArchiveBuilder.java had to be fixed
 // first: it named entries with the OS separator, so a build on Windows produced an archive TeaVM
 // could not read a single class out of, and every program failed to generate.
 const RUNTIME = 'runtime-classlib-teavm.bin';
-const RUNTIME_SHA256 = '1c2a234c6d390b2ab78d61d3e260981e37b04b92e113d0eb97d099650fcc49e6';
+const RUNTIME_SHA256 = 'fcff0859ca4af0f5622ae901fa3a1d796c37efdbf4dbe872ebfea221700829b6';
 
 const assetsDir = join(fileURLToPath(new URL('..', import.meta.url)), 'assets');
 const outDir = join(fileURLToPath(new URL('..', import.meta.url)), 'vendor', 'teavm');

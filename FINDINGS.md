@@ -26,17 +26,18 @@ Measured on `corpus/` (145 programs, run in Chrome):
 
 | | |
 |---|---|
-| Pass | **134 / 145** |
+| Pass | **135 / 145** |
 | Compile | **143 / 145** |
-| "Works on Doppio, fails here" (regressions) | **10** |
+| "Works on Doppio, fails here" (regressions) | **9** |
 | "Fails on both engines" | **1** (`instant-duration`) |
 
 Measured on a full run, and every class-library addition below (`String.lines()`, `Matcher.results()`,
-the `%e`/`%E` and `%n` format conversions, the `DecimalFormatSymbols` clone) is separately confirmed by
-running the affected programs and diffing the output against JDK 25 — `regex-groups`, `var-textblock`,
-`text-block-more`, `stringformat`, `parse-format`, `string-format-more` and `io-writers` all pass.
+the `%e`/`%E` and `%n` format conversions, the `DecimalFormatSymbols` clone, the `suppressed` field) is
+separately confirmed by running the affected programs and diffing the output against JDK 25 —
+`regex-groups`, `var-textblock`, `text-block-more`, `stringformat`, `parse-format`,
+`string-format-more`, `io-writers` and `exceptions-suppressed` all pass.
 
-The headline is the regression count, not the pass count: 10 of the 145 work today on the current
+The headline is the regression count, not the pass count: 9 of the 145 work today on the current
 engine and do not work here. That is the number that decides whether this can replace Doppio, and it
 is why this is not yet a straight swap.
 
@@ -103,6 +104,15 @@ run,loaded}` unchanged.
   reads falling back to `fetch`, writes recorded, async opens completed through
   `teavm_file_open_complete`. There is no directory model, so path-based NIO fails with a clean
   `Directory does not exist` rather than a broken module.
+- **The stack deobfuscator** — not an import, a loader option the worker passes when it instantiates
+  the program. `Throwable.getStackTrace()` is implemented by calling out to the runtime's
+  `takeStackTrace`, which maps the JS stack's addresses to Java frames through a deobfuscator; with no
+  deobfuscator it returns TeaVM's stand-in frames (`Throwable$FakeClass.fakeMethod`). Every generated
+  module carries its debug info **embedded** (the fork sets `WasmDebugInfoLocation.EMBEDDED` in
+  `Compiler.java`), and one generic 40 KB `compiler.wasm-deobfuscator.wasm` reads it, so the worker
+  enables it for the program too — see §5. Without that, `getStackTrace()` reports fake frames; with it
+  enabled but no deobfuscator module to load, frames come back with **null** names and crash user code
+  that reads them.
 
 ### Settings that matter
 
@@ -166,6 +176,14 @@ and — for the last one — a raw `TypeError` with no diagnostic at all.
   an object whose class does not override it works. Array clone traps outright
   (`int[] b = a.clone()`). This is one bug behind four regressions (§4c below), and it is worth
   suspecting for any other "elements are null" report (`Throwable.getStackTrace()` also clones).
+- **A stream lambda over `StackTraceElement[]` that calls `getMethodName()` and *uses* the result
+  traps** with `dereferencing a null pointer`, even though the frame and its name are both non-null.
+  Measured on generated code rather than inferred: `anyMatch(x -> x.getMethodName().equals("main"))`
+  traps, while `anyMatch(x -> x.getMethodName() != null)`, a plain non-lambda
+  `f.getMethodName().equals("main")`, and `map(StackTraceElement::getMethodName).findFirst().get()`
+  all return the right value in the same module. Now that `getStackTrace()` returns real frames
+  (§2/§5), this is the *only* thing left failing `exceptions-stacktrace` and `exception-propagation` —
+  their stack-trace data is correct.
 
 Fixing any of these means changing the wasm backend and rebuilding `compiler.wasm`, which needs
 Binaryen's `wasm-opt` (`:compiler:createDist`). Not installed here. See §7. The `clone()` one is
@@ -181,13 +199,14 @@ nevertheless **worked around** for the classes that matter, in the class library
 | ~~`%n` conversion~~ — **added here** | `stringformat`, `io-writers`; `Unknown format conversion: n` |
 | `Character.UnicodeBlock` | `char-classes` |
 | `java.time` entirely (`TInstant`/`TDuration` absent) | `instant-duration` |
-| `Throwable.addSuppressed` / `getStackTrace` elements null | `exceptions-suppressed`, `exceptions-stacktrace`, `exception-propagation` |
+| ~~`Throwable.suppressed` null~~ — **fixed here** | `exceptions-suppressed`. The field initializer never runs (TeaVM constructs through the `@Rename("<init>")` `init(…)` methods, not the real constructor), so `addSuppressed`/`getSuppressed` dereferenced null. `TThrowable` vendored with lazy accessors |
+| ~~`getStackTrace()` fake/incomplete frames~~ — **fixed here** | `exceptions-stacktrace`, `exception-propagation` get *real* frames now (class and method names), because the worker enables the stack deobfuscator and ships `compiler.wasm-deobfuscator.wasm`. Both programs still fail on the codegen fault in §4b, which is now the only thing left |
 | `EnumSet`/`EnumMap` null pointer in `AbstractStringBuilder.insert` | `enum-map-set` |
 | Reflection: subset only | `reflection`, `reflection-members` |
 
 `String.lines()` was in this list and is **fixed** — see §5 and `patches/README.md` for the recipe.
-The four fixes marked *fixed here* in this session are all one-shot vendored classes; none of them
-needed the compiler rebuilt.
+Everything marked *fixed here* is either a one-shot vendored class or (for real stack traces) a loader
+option in the worker; none of them needed the compiler rebuilt.
 
 ### 4d. Deliberate omissions
 
@@ -223,6 +242,12 @@ Three files, all drop-in replacements in the fork, plus a set of vendored class-
    | `java/util/regex/TMatcher` | `results()` added |
    | `java/text/TDecimalFormatSymbols` | `clone()` copies its fields explicitly instead of `super.clone()`, which is broken under WasmGC (§4b) |
    | `java/util/TFormatter` | `%e`/`%E` conversions added (exponent pattern + an explicit exponent sign), and `%n` added |
+   | `java/lang/TThrowable` | `getSuppressed`/`addSuppressed` tolerate the null `suppressed` field TeaVM's construction path leaves behind |
+
+4. **The stack deobfuscator**, which is not a patch but a loader option the worker now passes when it
+   instantiates a program, plus the `compiler.wasm-deobfuscator.wasm` artifact that makes it work
+   (`scripts/fetch-teavm.mjs` vendors it; `scripts/build.mjs` copies it next to `compiler.wasm`). See
+   §2: this is what turns `getStackTrace()` from TeaVM's stand-in frames into real ones.
 
 ### The class-library recipe
 
@@ -270,10 +295,11 @@ cp compiler/build/classlib/runtime-classlib-teavm.bin  assets/
 # update SDK_SHA256 / RUNTIME_SHA256 in scripts/fetch-teavm.mjs
 ```
 
-`npm run vendor:teavm` downloads the two `compiler.wasm*` artifacts from the pinned commit and copies
-the two classlib archives from `assets/`, checksum-verifying all four. `npm run build` then writes
-`dist/`. Nothing rewrites a third-party binary at vendoring time: the archives are build outputs,
-reproducible from the pinned commit plus the patches.
+`npm run vendor:teavm` downloads the three compiler artifacts (`compiler.wasm`,
+`compiler.wasm-runtime.js`, `compiler.wasm-deobfuscator.wasm`) from the pinned commit and copies the
+two classlib archives from `assets/`, checksum-verifying all five. `npm run build` then writes `dist/`.
+Nothing rewrites a third-party binary at vendoring time: the archives are build outputs, reproducible
+from the pinned commit plus the patches, and the deobfuscator is a stock artifact of that commit.
 
 ### Verifying a change, cheapest first
 
@@ -308,7 +334,7 @@ the regression count did not, and the numbers in §1 are updated.
 
 ## 7. Upgrading TeaVM later
 
-1. Bump `COMMIT`/`TEAVM_VERSION` in `scripts/fetch-teavm.mjs` and all four checksums.
+1. Bump `COMMIT`/`TEAVM_VERSION` in `scripts/fetch-teavm.mjs` and all five checksums.
 2. Re-apply the three patches by hand — check each still applies and still matters:
    - `StdlibConverter`: re-check `@Rename` handling, `InnerClasses`, duplicate members, abstract
      `default`s, self-extending `Annotation`, and annotation elements. All six were found by
@@ -357,7 +383,7 @@ the regression count did not, and the numbers in §1 are updated.
 
 ## 9. Open work
 
-**The 10 regressions block a straight swap** (§1). Most of §4c is reachable with the §5 recipe; the
+**The 9 regressions block a straight swap** (§1). Most of §4c is reachable with the §5 recipe; the
 code-generation faults in §4b are not, without Binaryen and a codegen patch.
 
 ### The float cluster — resolved, and what it taught
@@ -382,17 +408,28 @@ Root cause and fix: §4b and §5. The lesson the cluster keeps teaching: **cut i
 it** — three attributions made by reading code were all wrong, and the probe that worked was the
 cheapest.
 
-### Next class-library gaps, scoped
+### The exceptions cluster — 1 fixed, 2 blocked on codegen
 
-Each needs the §5 recipe — vendor the class, add the API, list it for the runtime archive, rebuild
-both archives (~2 min), re-vendor, then verify compile + generate + **output against the JDK**.
+`exceptions-suppressed` is fixed (a null field, §4c). The other two needed two things, and got the
+first: `getStackTrace()` now returns **real** frames, because the worker enables the stack
+deobfuscator (§2/§5). That is not a cosmetic change — before it, every frame was
+`Throwable$FakeClass.fakeMethod`, and a half-built deobfuscator gave frames whose names were null.
+The remaining failure in both is the §4b codegen fault: a stream lambda over `StackTraceElement[]`
+that calls `getMethodName()` and uses the result. It cannot be fixed here (Binaryen), and it is worth
+re-checking with a fresh Linux build rather than patching around.
 
-| Gap | What to vendor | Notes |
-|---|---|---|
-| `Character.UnicodeBlock` | `TCharacter` — large | the nested type is absent entirely, so it has to be authored, not just carried across. Unblocks `char-classes`. |
-| `java.time` | nothing — all new | `TInstant`/`TDuration` do not exist at all, so this is authoring a `java.time` subset rather than vendoring one. Decide how much of the package to promise before starting. Unblocks `instant-duration`. |
-| `Throwable.getStackTrace` / `addSuppressed` | `TThrowable` | **try the §4b clone idea first**: `getStackTrace` clones the trace, and the reported symptom is null *elements* on a cloned array — `int[] a.clone()` traps outright here |
-| `EnumSet`/`EnumMap` | — | the reported null is in `AbstractStringBuilder.insert`; reduce it the same way (probe, then `--trace`) |
+`exceptions` itself is the divide-by-zero trap (§4b) and `exceptions-finally` is the `finally { return }`
+wasm, both codegen.
+
+### Next steps, ranked
+
+| Item | What it takes |
+|---|---|
+| `char-classes` | author `Character.UnicodeBlock` on a vendored `TCharacter` — a **compile-level** gap, so `compile-program.mjs --all` says 144/145 when it is done. The largest single piece of work left that is actually available here |
+| `EnumSet`/`EnumMap` (`enum-map-set`) | the reported null is in `AbstractStringBuilder.insert`; reduce it the same way (probe, then `--trace`) — the method name in the trap is probably a caller, not the fault |
+| `instant-duration` | nothing to vendor: `java.time` is absent. A **scoping decision** (how much of the package to promise) before it is a technical task |
+| `reflection`, `reflection-members` | TeaVM's reflection is a declared subset; decide whether to widen it or document the subset |
+| `exceptions-finally`, `exceptions`, and the two `StackTraceElement` programs | codegen: needs Binaryen + a `compiler.wasm` rebuild, or an upstream TeaVM fix |
 
 The two remaining runtime faults are bugs rather than absences, so they need reducing before they can
 be fixed: bisect the program until the trap stops, take the stack from `run-program.mjs --trace`, then

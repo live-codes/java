@@ -46,6 +46,7 @@ interface TeaVmConsoleImports {
 
 interface LoadOptions {
   installImports?(imports: Record<string, unknown> & { teavmConsole?: TeaVmConsoleImports }): void;
+  stackDeobfuscator?: { enabled: boolean; infoLocation?: string; path?: string };
 }
 
 type TeaVmLoader = (input: Int8Array | string, options?: LoadOptions) => Promise<TeaVmModule>;
@@ -58,8 +59,10 @@ const RUN_TIMEOUT_MS = 30_000;
 
 let compiler: TeaVmCompiler | null = null;
 let diagnostics: unknown[] = [];
+let assetBaseUrl = '';
 
 async function init(baseUrl: string) {
+  assetBaseUrl = baseUrl;
   const teavm = await loadModule(baseUrl + 'compiler.wasm');
   compiler = (teavm.exports as unknown as { createCompiler(): TeaVmCompiler }).createCompiler();
   const sdk = new Int8Array(await (await fetch(baseUrl + 'compile-classlib-teavm.bin')).arrayBuffer());
@@ -246,6 +249,16 @@ async function executeProgram(wasm: Int8Array, input: string) {
   let stderr = '';
 
   const app = await loadModule(wasm, {
+    // Real Java stack traces. Every generated module carries its debug info embedded (the fork
+    // always sets `WasmDebugInfoLocation.EMBEDDED`), and this generic deobfuscator reads it, so the
+    // runtime reports `Throwable.getStackTrace()` frames by class and method instead of TeaVM's
+    // stand-in `Throwable$FakeClass.fakeMethod`. `infoLocation: 'embedded'` keeps the loader from
+    // looking for a `<module>.teadbg` file that is never written.
+    stackDeobfuscator: {
+      enabled: true,
+      infoLocation: 'embedded',
+      path: assetBaseUrl + 'compiler.wasm-deobfuscator.wasm',
+    },
     installImports(imports) {
       const consoleImports = (imports.teavmConsole ??= {});
       consoleImports.readStdin = () => (stdinIndex < stdin.length ? stdin[stdinIndex++] : -1);

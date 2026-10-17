@@ -26,6 +26,7 @@ const required = [
   'dist/java-wasm.iife.js',
   'dist/worker-java.js',
   'dist/teavm/compiler.wasm',
+  'dist/teavm/compiler.wasm-deobfuscator.wasm',
   'dist/teavm/compile-classlib-teavm.bin',
   'dist/teavm/runtime-classlib-teavm.bin',
 ];
@@ -60,6 +61,7 @@ for (const [needle, label] of [
   ['putcharStdout', 'embeds the TeaVM runtime glue'],
   ['readStdin', 'wires stdin (teavmConsole.readStdin)'],
   ['teavm_stopped', 'waits on the teavm_stopped completion flag'],
+  ['stackDeobfuscator', 'enables real Java stack traces (stack deobfuscator)'],
 ]) {
   if (!worker.includes(needle)) {
     console.error(`worker-java.js is missing ${needle} — expected it to ${label}`);

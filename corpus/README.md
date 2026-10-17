@@ -32,15 +32,18 @@ Raw results land in `corpus/results.json` (`results-only.json` for a filtered ru
 Programs must print deterministic output — sort maps and sets before printing, or the two engines
 differ for reasons that have nothing to do with correctness.
 
-## Result: 134/145 pass, but **10 of the 145 are regressions**
+## Result: 135/145 pass, but **9 of the 145 are regressions**
 
-java-wasm runs 134 of 145. That headline hides the number that matters for a switch: **10 of those
-11 failures work today on the current engine.** On this corpus that is a 6.9% regression rate.
+java-wasm runs 135 of 145. That headline hides the number that matters for a switch: **9 of those
+10 failures work today on the current engine.** On this corpus that is a 6.2% regression rate.
 
-The last four closed were `stringformat`, `parse-format` and `string-format-more` (one bug: every
-`DecimalFormat` clones its `DecimalFormatSymbols`, and `Object.clone()` produces an object with no
-vtable under this WasmGC backend, so the first virtual call on the copy trapped — see `FINDINGS.md`
-§4b) and `io-writers` (`%n` was not implemented).
+Two clusters closed most recently. `stringformat`, `parse-format` and `string-format-more` were one
+bug: every `DecimalFormat` clones its `DecimalFormatSymbols`, and `Object.clone()` produces an object
+with no vtable under this WasmGC backend, so the first virtual call on the copy trapped (see
+`FINDINGS.md` §4b); `io-writers` was a missing `%n` and `exceptions-suppressed` a `Throwable` field
+that is never initialised. `getStackTrace()` also returns real frames now instead of TeaVM's
+`Throwable$FakeClass.fakeMethod` stand-in, which the two remaining exception programs need but do not
+yet pass — they still hit a code-generation fault (`FINDINGS.md` §4b).
 
 Eight of the bugs the corpus found were in the fork rather than in TeaVM itself, and are fixed by
 the patches in `patches/` (see `patches/README.md`): `list-deque-queue`
@@ -55,7 +58,7 @@ Timings for the whole set: init 0.3–2 s, javac 1–13 s, **wasm generation 51�
 The spread is run-to-run variance on one machine (load-dependent), not a spread across programs;
 generation dominates either way.
 
-### Regressions — work on Doppio, fail on java-wasm (16 found, 10 remain)
+### Regressions — work on Doppio, fail on java-wasm (16 found, 9 remain)
 
 | # | Programs | Failure | Cause |
 |---|---|---|---|
@@ -63,8 +66,8 @@ generation dominates either way.
 | 2 | `reflection`, `reflection-members` | `NoSuchMethodException` | TeaVM reflection is a declared subset |
 | 3 | `exceptions` | wasm traps on integer divide-by-zero | no `ArithmeticException` |
 | 4 | `exceptions-finally` | `expected 1 elements on the stack for fallthru` | `try { return } finally { return }` compiles to invalid wasm |
-| 5 | `exceptions-suppressed` | null pointer in `Throwable.addSuppressed` | not implemented |
-| 6 | `exceptions-stacktrace`, `exception-propagation` | null pointer on `getStackTrace()` elements | not implemented |
+| 5 | ~~`exceptions-suppressed`~~ — fixed | — | `Throwable.suppressed` is never initialised (TeaVM constructs through the `@Rename("<init>")` `init(…)` methods), so `addSuppressed` dereferenced null. `TThrowable` vendored with lazy accessors |
+| 6 | `exceptions-stacktrace`, `exception-propagation` | null pointer in a lambda over `StackTraceElement[]` | frames are **real** now (the worker enables the stack deobfuscator), but a stream lambda that calls `getMethodName()` and uses the result trips a code-generation fault — see `FINDINGS.md` §4b |
 | 7 | `char-classes` | `cannot find symbol: UnicodeBlock` | class library gap |
 | 8 | ~~`io-writers`~~ — fixed | — | `PrintWriter.printf("%n")` was `Unknown format conversion: n`; `%n` added to the class library's `TFormatter` |
 | 9 | ~~`recursive-generics`~~ — fixed | — | had crashed the compiler: the class library's `TSuppressWarnings` is a method-less stub shadowing the JDK's declaration, so javac had no `value` element to bind and threw a raw JS `TypeError`. Fixed by bug 6 of the SDK patch (`patches/README.md`); see `poc/UPSTREAM.md` |
@@ -106,7 +109,7 @@ wrong: `interfaces` throws `NullPointerException` where java-wasm prints the rig
 
 ## Caveat
 
-145 hand-written programs still only sample the API, and they were written to probe gaps, so 6.9%
+145 hand-written programs still only sample the API, and they were written to probe gaps, so 6.2%
 is not a prediction of the real-world rate. It is measured rather than inferred — and the
 remaining regressions cluster in exception handling and reflection, which ordinary
 beginner-to-intermediate Java does use.

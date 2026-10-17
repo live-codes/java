@@ -353,6 +353,13 @@ behind the `%e`/`%f` paths and is the obvious suspect, but its only dereference 
 pattern one, which passes `new TDecimalFormatSymbols()`. So the null is further in than construction,
 despite `forDigit` appearing in the classlib's own `%e` call sites.
 
+**And the corpus cannot bisect for you as it stands.** Every one of the 15 failing programs records
+`stdout=""` — including ones that print before they trap — so partial output does not survive a
+failure, and `stringformat`'s four statements cannot be told apart from its recorded result. That is
+a one-line fix in `worker-java.ts` (catch around the `main()` call and the wait loop, and return the
+`stdout` accumulated so far with the error) and it would make every future runtime failure
+self-describing, which is worth doing **before** bisecting this cluster by hand.
+
 ### Beyond the class library
 
 - **LiveCodes wiring**: not started. `vendors.ts` + `lang-java-script.ts`, keeping the

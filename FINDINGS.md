@@ -426,7 +426,7 @@ wasm, both codegen.
 | Item | What it takes |
 |---|---|
 | `char-classes` | author `Character.UnicodeBlock` on a vendored `TCharacter` — a **compile-level** gap, so `compile-program.mjs --all` says 144/145 when it is done. The largest single piece of work left that is actually available here |
-| `EnumSet`/`EnumMap` (`enum-map-set`) | the reported null is in `AbstractStringBuilder.insert`; reduce it the same way (probe, then `--trace`) — the method name in the trap is probably a caller, not the fault |
+| `EnumSet`/`EnumMap` (`enum-map-set`) | reduced, not fixed. `HashMap.toString()` is fine, but `EnumMap.toString()` (both `TAbstractMap.toString`) and `EnumSet.toString()`/`Map.keySet().toString()` (both `TAbstractCollection.toString`) trap in the `StringBuilder.append → insert` they use internally — the trap is in `AbstractStringBuilder.insert(int, char)`, i.e. a null `buffer`. Appending an enum to a `StringBuilder` from *user* code works, so it is the classlib-code context or another mis-compiled method copy (the trap names `insert_0`, `insert_4`, `append(204)` — TeaVM's copies), and not the enum. This one is **not** obviously the clone bug: the same `StringBuilder.append(Object)` trap pattern shows up in `exception-propagation` too |
 | `instant-duration` | nothing to vendor: `java.time` is absent. A **scoping decision** (how much of the package to promise) before it is a technical task |
 | `reflection`, `reflection-members` | TeaVM's reflection is a declared subset; decide whether to widen it or document the subset |
 | `exceptions-finally`, `exceptions`, and the two `StackTraceElement` programs | codegen: needs Binaryen + a `compiler.wasm` rebuild, or an upstream TeaVM fix |

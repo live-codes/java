@@ -26,18 +26,18 @@ Measured on `corpus/` (145 programs, run in Chrome):
 
 | | |
 |---|---|
-| Pass | **135 / 145** |
-| Compile | **143 / 145** |
-| "Works on Doppio, fails here" (regressions) | **9** |
+| Pass | **136 / 145** |
+| Compile | **144 / 145** |
+| "Works on Doppio, fails here" (regressions) | **8** |
 | "Fails on both engines" | **1** (`instant-duration`) |
 
 Measured on a full run, and every class-library addition below (`String.lines()`, `Matcher.results()`,
-the `%e`/`%E` and `%n` format conversions, the `DecimalFormatSymbols` clone, the `suppressed` field) is
-separately confirmed by running the affected programs and diffing the output against JDK 25 —
-`regex-groups`, `var-textblock`, `text-block-more`, `stringformat`, `parse-format`,
-`string-format-more`, `io-writers` and `exceptions-suppressed` all pass.
+the `%e`/`%E` and `%n` format conversions, the `DecimalFormatSymbols` clone, the `suppressed` field,
+`Character.UnicodeBlock`) is separately confirmed by running the affected programs and diffing the
+output against JDK 25 — `regex-groups`, `var-textblock`, `text-block-more`, `stringformat`,
+`parse-format`, `string-format-more`, `io-writers`, `exceptions-suppressed` and `char-classes` all pass.
 
-The headline is the regression count, not the pass count: 9 of the 145 work today on the current
+The headline is the regression count, not the pass count: 8 of the 145 work today on the current
 engine and do not work here. That is the number that decides whether this can replace Doppio, and it
 is why this is not yet a straight swap.
 
@@ -197,7 +197,7 @@ nevertheless **worked around** for the classes that matter, in the class library
 | ~~`DecimalFormatSymbols.clone()`~~ — **fixed here** | `stringformat`, `parse-format`, `string-format-more`. The null was never in `DecimalFormat`: it clones its symbols, and `Object.clone()` returns a vtable-less object under WasmGC (§4b). `TDecimalFormatSymbols` vendored with an explicit field copy |
 | ~~`%e`/`%E` conversions~~ — **added here** | the second half of `stringformat`; `TFormatter` produced `Unknown format conversion: e` |
 | ~~`%n` conversion~~ — **added here** | `stringformat`, `io-writers`; `Unknown format conversion: n` |
-| `Character.UnicodeBlock` | `char-classes` |
+| ~~`Character.UnicodeBlock`~~ — **added here** | `char-classes`; neither `UnicodeBlock` nor `Character.Subset` exists in TeaVM 0.14.1. `TCharacter` vendored and the nested types appended; the block table is generated from the JDK (§5) |
 | `java.time` entirely (`TInstant`/`TDuration` absent) | `instant-duration` |
 | ~~`Throwable.suppressed` null~~ — **fixed here** | `exceptions-suppressed`. The field initializer never runs (TeaVM constructs through the `@Rename("<init>")` `init(…)` methods, not the real constructor), so `addSuppressed`/`getSuppressed` dereferenced null. `TThrowable` vendored with lazy accessors |
 | ~~`getStackTrace()` fake/incomplete frames~~ — **fixed here** | `exceptions-stacktrace`, `exception-propagation` get *real* frames now (class and method names), because the worker enables the stack deobfuscator and ships `compiler.wasm-deobfuscator.wasm`. Both programs still fail on the codegen fault in §4b, which is now the only thing left |
@@ -243,6 +243,13 @@ Three files, all drop-in replacements in the fork, plus a set of vendored class-
    | `java/text/TDecimalFormatSymbols` | `clone()` copies its fields explicitly instead of `super.clone()`, which is broken under WasmGC (§4b) |
    | `java/util/TFormatter` | `%e`/`%E` conversions added (exponent pattern + an explicit exponent sign), and `%n` added |
    | `java/lang/TThrowable` | `getSuppressed`/`addSuppressed` tolerate the null `suppressed` field TeaVM's construction path leaves behind |
+   | `java/lang/TCharacter` | `Character.Subset` and `Character.UnicodeBlock` appended — neither exists upstream. The 339 block constants and their ranges are **generated from the JDK** by `scripts/gen-unicode-blocks.java`, so `of()` agrees with the JDK exactly (including code points in no block, and the surrogate ranges) |
+
+   `TCharacter` is the one vendored class with substantial *new API* rather than a fix, and its data is
+   the JDK's, not hand-typed: run `java scripts/gen-unicode-blocks.java` and paste the output between
+   the `generated` markers (the script's header explains it). Two semantics were measured against the
+   JDK rather than assumed — `Subset.equals`/`hashCode` are **identity**-based, so `hashCode` is not
+   `name.hashCode()`.
 
 4. **The stack deobfuscator**, which is not a patch but a loader option the worker now passes when it
    instantiates a program, plus the `compiler.wasm-deobfuscator.wasm` artifact that makes it work
@@ -341,7 +348,10 @@ the regression count did not, and the numbers in §1 are updated.
      measurement; a new TeaVM may fix some upstream.
    - `ArchiveBuilder`: check whether the separator is normalised upstream. If it is, delete the patch.
    - `TString` (and any later vendored class): **diff against the new sources jar** and re-apply the
-     added method, rather than copying the old file forward.
+     added method, rather than copying the old file forward. `TCharacter` is the awkward one: take the
+     new upstream file, then re-append the nested `Subset`/`UnicodeBlock` types, re-running
+     `scripts/gen-unicode-blocks.java` so the block table matches the new JDK build (the JDK's table is
+     the authority, not TeaVM's).
 3. Rebuild both archives, re-vendor, update checksums.
 4. Run `sdk-check.mjs` (it encodes every SDK bug we have fixed, so it is the regression net), then
    `compile-program.mjs --all`, then the full corpus.
@@ -383,7 +393,7 @@ the regression count did not, and the numbers in §1 are updated.
 
 ## 9. Open work
 
-**The 9 regressions block a straight swap** (§1). Most of §4c is reachable with the §5 recipe; the
+**The 8 regressions block a straight swap** (§1). Most of §4c is reachable with the §5 recipe; the
 code-generation faults in §4b are not, without Binaryen and a codegen patch.
 
 ### The float cluster — resolved, and what it taught
@@ -425,15 +435,21 @@ wasm, both codegen.
 
 | Item | What it takes |
 |---|---|
-| `char-classes` | author `Character.UnicodeBlock` on a vendored `TCharacter` — a **compile-level** gap, so `compile-program.mjs --all` says 144/145 when it is done. The largest single piece of work left that is actually available here |
 | `EnumSet`/`EnumMap` (`enum-map-set`) | reduced, not fixed. `HashMap.toString()` is fine, but `EnumMap.toString()` (both `TAbstractMap.toString`) and `EnumSet.toString()`/`Map.keySet().toString()` (both `TAbstractCollection.toString`) trap in the `StringBuilder.append → insert` they use internally — the trap is in `AbstractStringBuilder.insert(int, char)`, i.e. a null `buffer`. Appending an enum to a `StringBuilder` from *user* code works, so it is the classlib-code context or another mis-compiled method copy (the trap names `insert_0`, `insert_4`, `append(204)` — TeaVM's copies), and not the enum. This one is **not** obviously the clone bug: the same `StringBuilder.append(Object)` trap pattern shows up in `exception-propagation` too |
-| `instant-duration` | nothing to vendor: `java.time` is absent. A **scoping decision** (how much of the package to promise) before it is a technical task |
+| `instant-duration` | nothing to vendor: `java.time` is absent. A **scoping decision** (how much of the package to promise) before it is a technical task. It is the last **compile-level** gap, so `compile-program.mjs --all` says 145/145 once it is done |
 | `reflection`, `reflection-members` | TeaVM's reflection is a declared subset; decide whether to widen it or document the subset |
 | `exceptions-finally`, `exceptions`, and the two `StackTraceElement` programs | codegen: needs Binaryen + a `compiler.wasm` rebuild, or an upstream TeaVM fix |
 
 The two remaining runtime faults are bugs rather than absences, so they need reducing before they can
 be fixed: bisect the program until the trap stops, take the stack from `run-program.mjs --trace`, then
 read only the class that frame names.
+
+### Closed this session (for the record)
+
+The float cluster (`stringformat`, `parse-format`, `string-format-more` — one `Object.clone()` bug,
+§4b/§5), `io-writers` (`%n`), `exceptions-suppressed` (`Throwable.suppressed`), and `char-classes`
+(`Character.UnicodeBlock`, generated from the JDK). Each was verified by diffing the program's output
+against JDK 25, not just by the corpus going green.
 
 ### Beyond the class library
 

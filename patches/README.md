@@ -162,6 +162,28 @@ says `Fork addition:`, against the day a TeaVM bump means re-syncing it against 
 | `java/text/TDecimalFormatSymbols` | `clone()` copies its own fields explicitly instead of `super.clone()` |
 | `java/util/TFormatter` | `%e`/`%E` and `%n` conversions added |
 | `java/lang/TThrowable` | `getSuppressed`/`addSuppressed` tolerate a null `suppressed` field |
+| `java/lang/TCharacter` | `Character.Subset` and `Character.UnicodeBlock` added — neither type exists upstream |
+
+`TCharacter` is the largest of these, and the only one where a substantial part is **new API** rather
+than a fix. `Character.UnicodeBlock` is entirely absent from TeaVM 0.14.1, so any program touching it
+failed to compile (`cannot find symbol: variable UnicodeBlock`). The nested `Subset` and `UnicodeBlock`
+types are appended to the upstream file, and the block table is **generated from the running JDK**:
+
+```bash
+java scripts/gen-unicode-blocks.java > blocks.txt   # 339 blocks, 338 ranges
+```
+
+`of()` binary-searches those ranges, so it agrees with the JDK exactly — including the code points in
+no block (null) and the surrogate ranges (`of(0xD800)` is `HIGH_SURROGATES`; the JDK's legacy
+`SURROGATES_AREA` constant exists but `of()` never returns it). `forName`, the 339 constants, and
+`Subset.toString()` are covered too. Two details are easy to get wrong and were measured against the
+JDK rather than assumed: `Subset.equals`/`hashCode` are **identity**-based (two distinct `Subset`s with
+the same name are not equal), and `hashCode` is therefore an identity hash, not `name.hashCode()`.
+
+To regenerate: paste the new `blocks.txt` between the `generated` markers in the vendored
+`TCharacter.java`, or re-run the compose step (`scripts/gen-unicode-blocks.java`'s header explains the
+markers). Re-syncing `TCharacter` against a new TeaVM sources jar means the same: take the new
+upstream file, then re-append the nested types.
 
 `TThrowable`'s `suppressed` field is declared `= new TThrowable[0]`, but the initializer never runs:
 TeaVM renames the real constructor to `fakeInit` and constructs through the `@Rename("<init>")`

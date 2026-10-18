@@ -284,12 +284,58 @@ classlib internals stay out, and the cost stays bounded because the listener onl
 whose `Class` object actually reaches a reflection API.
 
 **Effect, measured.** `reflection-members` now matches JDK 25 byte for byte, including a `private`
-method invoked through `setAccessible(true)`. `reflection` gets through
-`getDeclaredMethod("describe").invoke(t)` and fails only at its last line, `Class.forName`: that
-resolves names from the generated `ClassInfo` table and only sees classes whose class object has
-already been materialized (`String.class.getName()` first makes it work) — a separate wasmGC metadata
-limitation, not this patch.
+method invoked through `setAccessible(true)`.
 
 This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above), not
 just the class-library archives. The rebuilt `compiler.wasm` is committed in `assets/` — see
 `FINDINGS.md` §6.
+
+## Core patch: `ClassMetadataRequirements` (class names, and `Class.forName`)
+
+`ClassMetadataRequirements.java` here is a drop-in replacement for
+`org.teavm.model.analysis.ClassMetadataRequirements` in TeaVM core. It is not part of the fork: it is
+placed in `compiler/src/patches/java`, the source set whose classes shadow the core jar on the
+compiler's classpath, and it is picked up by the compiler build because that directory is one of the
+`compiler` module's source roots (`compiler/build.gradle`).
+
+**The bug.** Whether a class carries its name in the generated `ClassInfo` is decided per class, from
+the **statically known** `Class` values that the dependency analyzer can prove flow into
+`Class.getName()`:
+
+```java
+addClassesRequiringName(requirements, getNameMethod.getVariable(0).getClassValueNode().getTypes());
+```
+
+A class the program obtains any other way — `Object.getClass()`, `Class.forName`, `getSuperclass`,
+`Array.newInstance`, or a `Class` kept in a field or collection — is not in that set, so its `name`
+field is never emitted and `getName()` returns **null** (`ClassInfo.name()` answers "absent"). The
+same table is what `TClass.forName` builds its name→class map from, so `Class.forName` cannot resolve
+a class whose name is absent either.
+
+Measured on a three-line program:
+
+```java
+EnumMap<Level, Integer> m = new EnumMap<>(Level.class);   // Level is a nested enum
+Object k = m.keySet().iterator().next();
+System.out.println(((Level) k).getClass().getName());     // null   (JDK: Main$Level)
+```
+
+Adding a line that mentions `Level.class.getName()` makes the very next run print `Main$Level`, because
+that call site *is* a statically known `Class` value. It is the same mechanism behind `reflection`'s
+last line: `Class.forName("java.lang.String")` only resolved after something else in the program asked
+`String.class.getName()` first.
+
+**The fix.** If `Class.getName`, or either `Class.forName` overload, is reached, then every class gets
+its name: `getInfo(...)` answers `name = true` for a type the requirements map does not mention, and
+forces it for the ones it does. That is the conservative reading of what those methods mean — any
+`Class` object can arrive at `getName`, and `forName` is a by-name lookup over the whole table.
+
+**Effect, measured.** `reflection` now matches JDK 25 byte for byte — including its last line — and
+`getClass().getName()` returns `Main$Level` in the probe above. The cost is a name string per class in
+every module that uses these methods, which the corpus's binary sizes absorb.
+
+**Not fixed by this:** a virtual call on an object of a class whose vtable was left unfilled still
+traps. That is a separate generator fault — `FINDINGS.md` §4b has the disassembly, `poc/UPSTREAM.md`
+§8 the report.
+
+This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above).

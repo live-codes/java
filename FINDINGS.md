@@ -26,9 +26,9 @@ Measured on `corpus/` (145 programs, run in Chrome):
 
 | | |
 |---|---|
-| Pass | **139 / 145** |
+| Pass | **140 / 145** |
 | Compile | **145 / 145** |
-| "Works on Doppio, fails here" (regressions) | **6** |
+| "Works on Doppio, fails here" (regressions) | **5** |
 | "Fails on both engines" | **0** |
 
 Measured on a full run. Every program compiles, and **every remaining failure is a regression** —
@@ -36,13 +36,14 @@ there is no "broken on both engines" left to hide behind.
 
 Every class-library addition below (`String.lines()`, `Matcher.results()`, the `%e`/`%E` and `%n` format
 conversions, the `DecimalFormatSymbols` clone, the `suppressed` field, `Character.UnicodeBlock`,
-`Duration.toXxxPart()`, the division helper) and both compiler patches (`CompilerResourceSupplier`,
-`DivisionCheckTransformer`) are separately confirmed by running the affected programs and diffing the
-output against JDK 25 — `regex-groups`, `var-textblock`, `text-block-more`, `stringformat`,
-`parse-format`, `string-format-more`, `io-writers`, `exceptions-suppressed`, `char-classes`,
-`instant-duration`, `reflection-members` and `exceptions` all pass.
+`Duration.toXxxPart()`, the division helper) and all three compiler patches
+(`CompilerResourceSupplier`, `ClassMetadataRequirements`, `DivisionCheckTransformer`) are separately
+confirmed by running the affected programs and diffing the output against JDK 25 — `regex-groups`,
+`var-textblock`, `text-block-more`, `stringformat`, `parse-format`, `string-format-more`, `io-writers`,
+`exceptions-suppressed`, `char-classes`, `instant-duration`, `reflection-members`, `reflection` and
+`exceptions` all pass.
 
-The headline is the regression count, not the pass count: 6 of the 145 work today on the current
+The headline is the regression count, not the pass count: 5 of the 145 work today on the current
 engine and do not work here. That is the number that decides whether this can replace Doppio, and it
 is why this is not yet a straight swap.
 
@@ -195,14 +196,29 @@ Java; the rest need the wasm backend itself.
   an object whose class does not override it works. Array clone traps outright
   (`int[] b = a.clone()`). This is one bug behind four regressions (§4c below), and it is worth
   suspecting for any other "elements are null" report (`Throwable.getStackTrace()` also clones).
-- **A stream lambda over `StackTraceElement[]` that calls `getMethodName()` and *uses* the result
-  traps** with `dereferencing a null pointer`, even though the frame and its name are both non-null.
-  Measured on generated code rather than inferred: `anyMatch(x -> x.getMethodName().equals("main"))`
-  traps, while `anyMatch(x -> x.getMethodName() != null)`, a plain non-lambda
-  `f.getMethodName().equals("main")`, and `map(StackTraceElement::getMethodName).findFirst().get()`
-  all return the right value in the same module. Now that `getStackTrace()` returns real frames
-  (§2/§5), this is the *only* thing left failing `exceptions-stacktrace` and `exception-propagation` —
-  their stack-trace data is correct.
+- **A virtual call on an object whose class's vtable was never filled traps** with `dereferencing a
+  null pointer` — this is one bug behind `enum-map-set` and both `StackTraceElement` programs.
+  Disassembled rather than guessed: `wasm-dis` (the **standalone** Binaryen tool works on TeaVM's
+  output, where the npm `binaryen` binding does not) shows `AbstractStringBuilder::insert(int, Object)`
+  calling `obj.toString()` as
+  ```wat
+  (call_ref $14 (local.get $obj)
+    (struct.get $VT<java.lang.Object> $toString
+      (ref.cast (ref $VT<java.lang.Object>) (struct.get $java.lang.Object $vt (local.get $obj)))))
+  ```
+  and the object's vt — a `$Main$Level@vt` global, created as `struct.new_default` — never has that slot
+  written. TeaVM fills a vtable in the program initializer (`fillVirtualTableMethods`): it calls a
+  runtime `teavm@objectVirtualTable(vt, class)` once, then `struct.set`s the slots the class itself
+  provides. `WasmGCVirtualTableBuilder` marks a table "used" only when a call site's **declaring**
+  class is that class (`groupMethodsFromCallSites` groups by `methodRef.getClassName()`), so a class
+  that only *inherits* the method called on it — an enum without its own `toString`, a class whose
+  `toString` comes from `Object` — can be left unused, and `fillVirtualTableMethods` returns early
+  (`usedVt == null`) without writing anything. The call site still reads the slot, because
+  `WasmGCVirtualCallGenerator` takes the structure from the receiver's **static** type. It is
+  shape-dependent, which is why it moves when unrelated code is added or removed: a nearby
+  statically-typed use of the class can mark the table used and make the same call work.
+  `getClass().getName()` returning `null` in the same shape was a second cause and **is fixed** (§5, the
+  `ClassMetadataRequirements` patch); this one is not.
 
 Touching the backend itself means rebuilding `compiler.wasm` — which now **works**, reproducibly, in
 ~9 minutes (§6). `clone()` is worked around per class in the class library and division is worked
@@ -241,7 +257,8 @@ option in the worker; none of them needed the compiler rebuilt.
 
 ## 5. What we patch
 
-Five files, all drop-in replacements in the fork, plus a set of vendored class-library classes.
+Six files, all drop-in replacements in the fork (one of them in TeaVM core, not the fork — item 4),
+plus a set of vendored class-library classes.
 `patches/README.md` has the details and reproduction steps; the short version:
 
 1. **`StdlibConverter.java`** — applies `@Rename`, renames `InnerClasses`/`EnclosingMethod`/nest
@@ -259,11 +276,17 @@ Five files, all drop-in replacements in the fork, plus a set of vendored class-l
    every **field** of an application class but no **methods**, so `getDeclaredMethods()` was empty and
    `getMethod`/`getDeclaredMethod` always threw. The patch mirrors the field rule for methods. This is
    a **compiler** change — `:compiler:optimizeWasmGC`, not the archives.
-4. **`DivisionCheckTransformer.java`** (a new file, not a replacement) — a `ClassHolderTransformer`
+4. **`ClassMetadataRequirements.java`** — a **TeaVM core** class, shadowed through
+   `compiler/src/patches/java`. Whether a class carries its name in the generated `ClassInfo` was
+   decided per class from the statically known `Class` values reaching `Class.getName()`, so any class
+   obtained via `getClass()`, `forName`, `getSuperclass` or a `Class` in a collection had no name:
+   `getName()` returned `null` and `Class.forName` could not resolve it. The patch makes `getName` and
+   `forName` (either overload) mean *every* class gets its name. Also a compiler change.
+5. **`DivisionCheckTransformer.java`** (a new file, not a replacement) — a `ClassHolderTransformer`
    that rewrites int/long `DIVIDE`/`MODULO` into calls to `org.teavm.classlib.impl.math.Division`, so a
    zero divisor throws `ArithmeticException` instead of trapping in wasm. Registered in
    `Compiler.createTeaVM` for `WasmGCTarget` only. Also a compiler change.
-5. **Vendored class-library classes**, in `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...`
+6. **Vendored class-library classes**, in `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...`
    and each listed by name in `prepareTeaVMClassLib`'s include list:
 
    | Class | Change |
@@ -283,7 +306,7 @@ Five files, all drop-in replacements in the fork, plus a set of vendored class-l
    JDK rather than assumed — `Subset.equals`/`hashCode` are **identity**-based, so `hashCode` is not
    `name.hashCode()`.
 
-6. **The stack deobfuscator**, which is not a patch but a loader option the worker now passes when it
+7. **The stack deobfuscator**, which is not a patch but a loader option the worker now passes when it
    instantiates a program, plus the `compiler.wasm-deobfuscator.wasm` artifact that makes it work
    (`scripts/fetch-teavm.mjs` vendors it; `scripts/build.mjs` copies it next to `compiler.wasm`). See
    §2: this is what turns `getStackTrace()` from TeaVM's stand-in frames into real ones.
@@ -491,7 +514,7 @@ Root cause and fix: §4b and §5. The lesson the cluster keeps teaching: **cut i
 it** — three attributions made by reading code were all wrong, and the probe that worked was the
 cheapest.
 
-### The exceptions cluster — 1 fixed, 2 blocked on codegen
+### The exceptions cluster — 1 fixed, 1 worked around, 2 blocked on codegen
 
 `exceptions-suppressed` is fixed (a null field, §4c). The other two needed two things, and got the
 first: `getStackTrace()` now returns **real** frames, because the worker enables the stack
@@ -501,20 +524,21 @@ deobfuscator (§2/§5). That is not a cosmetic change — before it, every frame
 `DivisionCheckTransformer` (§4b/§5). `exceptions-finally` remains: the `finally { return }` wasm, which
 is backend work.
 
-The stream-lambda trap above is also worth re-checking with a *fresh* build rather than patching
-around: it is shape-dependent, so a different `wasm-opt` or inliner settings may change it.
+The stream-lambda trap in the last two is the unfilled-vtable bug in §4b, now located precisely: the
+call site reads a slot from the receiver's static type's vtable structure, and TeaVM left that
+structure all-null for that class. It is worth re-checking with a *fresh* build rather than patching
+around, since it is shape-dependent — a different `wasm-opt` or inliner setting may change it.
 
 ### Next steps, ranked
 
 | Item | What it takes |
 |---|---|
-| `EnumSet`/`EnumMap` (`enum-map-set`) | reduced to a **codegen** fault, not fixable in the class library. The trap is `AbstractStringBuilder.insert(int, char)` on a null `buffer`, reached from the `StringBuilder` that `AbstractMap.toString`/`AbstractCollection.toString` build — TeaVM's method *copies* (`insert_0`, `insert_4`, `append(204)`). It is shape-dependent, which is the tell: a near-identical program (`HashMap<Level,Integer>` printed with `+`, and an `EnumMap` printed in isolation) produces correct output, and giving the enum its **own** `toString()` makes the exact corpus shape work. Without that override, a *virtual* call to the inherited `TEnum.toString()` traps while the final `name()`/`ordinal()` on the same object work, and `getClass().getName()` on it returns null. Same family as the `Object.clone()` bug in §4b: a vtable slot / class metadata that the generator did not emit correctly for that program. **Needs Binaryen and a codegen fix** |
-| `reflection` | **only its last line is left**: `Class.forName("java.lang.String")`. `TClass.forName` builds its name map from the generated `ClassInfo` table, which contains only classes whose class object was already materialized — calling `String.class.getName()` earlier in the same program makes it resolve. Everything else in the program (class and method reflection, including `invoke`) now matches the JDK. Fixing it means emitting name info for more classes in `WasmGCReflectionGenerator` (a compiler change), or documenting "forName sees initialized classes only" |
-| `exceptions-finally`, and the two `StackTraceElement` programs | codegen: needs a wasm-backend change (the compiler rebuild itself is proven, §6), or an upstream TeaVM fix |
+| `EnumSet`/`EnumMap` (`enum-map-set`), and the two `StackTraceElement` programs | one **codegen** fault, now located: the object's vtable was left all-null (its class's table is never marked "used", so `fillVirtualTableMethods` returns early) while the call site reads a slot from the receiver's static type's vtable structure. `enum-map-set`'s trap is `AbstractStringBuilder.insert(int, Object)` calling `obj.toString()` on an `EnumMap` key — disassembly in §4b. Fixing it means `WasmGCVirtualTableBuilder`/`WasmGCClassGenerator` (both TeaVM core, shadowable through `compiler/src/patches/java`) agreeing on which tables get filled. Shape-dependent, so a changed build can also make it disappear |
+| `exceptions-finally` | codegen: `try { return } finally { return }` emits invalid wasm. Backend work, or an upstream fix |
 
-The two remaining runtime faults are bugs rather than absences, so they need reducing before they can
-be fixed: bisect the program until the trap stops, take the stack from `run-program.mjs --trace`, then
-read only the class that frame names.
+Both remaining faults are in code generation rather than the class library, so neither needs bisecting
+first: `run-program.mjs --trace` names the trapping frame, `--emit` writes the module, and
+`wasm-dis` (`binaryen-version_133/bin/wasm-dis.exe`) turns it into readable wat with Java names.
 
 ### Closed this session (for the record)
 
@@ -522,7 +546,8 @@ The float cluster (`stringformat`, `parse-format`, `string-format-more` — one 
 §4b/§5), `io-writers` (`%n`), `exceptions-suppressed` (`Throwable.suppressed`), `char-classes`
 (`Character.UnicodeBlock`, generated from the JDK), `instant-duration` (`Duration.toXxxPart()`, which
 also took the compile count to **145/145**), `reflection-members` (the `CompilerResourceSupplier`
-patch), and `exceptions` (`DivisionCheckTransformer` + the `Division` helper). Each was verified by
+patch), `exceptions` (`DivisionCheckTransformer` + the `Division` helper), and `reflection` (the
+`ClassMetadataRequirements` patch: its last line, `Class.forName`, now resolves). Each was verified by
 diffing the program's output against JDK 25, not just by the corpus going green.
 
 ### Beyond the class library

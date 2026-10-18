@@ -37,29 +37,29 @@ Measured on `corpus/` (145 programs), last full run:
 
 | | |
 |---|---|
-| Pass | **139 / 145** |
+| Pass | **140 / 145** |
 | Compile | **145 / 145** |
-| Regressions (work on Doppio, fail here) | **6** |
+| Regressions (work on Doppio, fail here) | **5** |
 | Fails on both engines | **0** |
 
-Failing programs (6): `exceptions-finally`, `exceptions-stacktrace`, `exception-propagation`,
-`reflection`, `enum-map-set`, `file-io`.
+Failing programs (5): `exceptions-finally`, `exceptions-stacktrace`, `exception-propagation`,
+`enum-map-set`, `file-io`.
 
 Where each cluster lives is in `FINDINGS.md` §4. The short version:
 
-- **All 6 remaining failures are regressions**, and the corpus compiles **145/145**.
-- **No class-library work is left.** Every remaining failure is either **code generation** (4:
-  `exceptions-finally`, the two `StackTraceElement` stream-lambda programs, `enum-map-set`),
-  **compiler-side metadata** (1: `reflection`'s last line, `Class.forName`), or **deliberate** (1:
-  `file-io`).
-- Those five are all one kind of work — a wasm-backend/`ClassInfo` change, which needs a
-  `compiler.wasm` rebuild. **The rebuild is proven** (§6A), so the loop is: patch, ~9 min, corpus.
-  Note that two faults *looked* like backend work and were fixed in Java instead (§4b: `clone()` in
-  the class library, division by a `ClassHolderTransformer`) — try that shape first.
+- **All 5 remaining failures are regressions**, and the corpus compiles **145/145**.
+- **No class-library work is left.** Every remaining failure is **code generation** (4:
+  `exceptions-finally`, the two `StackTraceElement` stream-lambda programs and `enum-map-set` — the
+  last three are *one* fault, an unfilled vtable, §6) or **deliberate** (1: `file-io`).
+- Those are backend work, which needs a `compiler.wasm` rebuild. **The rebuild is proven** (§6A), so
+  the loop is: patch, ~5–9 min, corpus. Two faults that *looked* like backend work were fixed in Java
+  instead (§4b: `clone()` in the class library, division by a `ClassHolderTransformer`, and class-name
+  metadata by a core patch) — try that shape first, it keeps working.
 
-Git: `D:\DevWork\live-codes\java` is **clean** at the tip of `main` (nine commits this session: the
+Git: `D:\DevWork\live-codes\java` is **clean** at the tip of `main` (eleven commits this session: the
 float cluster, exceptions/stack-trace, `char-classes`, the committed artifacts, `instant-duration`, the
-Docker build recipe, the reflection compiler patch, the UPSTREAM refresh, and the division fix).
+Docker build recipe, the reflection compiler patch, the UPSTREAM refresh, the division fix, and the
+class-name metadata fix).
 
 ---
 
@@ -100,6 +100,7 @@ Worker protocol (do not break it; the LiveCodes wiring depends on this shape):
 
 | Commit | What |
 |---|---|
+| the metadata commit | **Class names, and `Class.forName`.** Whether a class carries its name in the generated `ClassInfo` was decided per class from the statically known `Class` values reaching `Class.getName()`, so `getClass().getName()` returned `null` and `Class.forName` could only resolve a class some other line had already asked the name of. `patches/ClassMetadataRequirements.java` — a **TeaVM core** class shadowed through `compiler/src/patches/java` — makes `getName`/`forName` mean *every* class gets its name. `reflection` now matches JDK 25 byte for byte |
 | the division commit | **Integer division by zero.** The WasmGC backend emits `div_s`/`rem_s` with no check, so `10 / 0` trapped instead of throwing `ArithmeticException`. `DivisionCheckTransformer` (a `ClassHolderTransformer` registered for `WasmGCTarget`) rewrites int/long `DIVIDE`/`MODULO` into calls to a new class-library `Division` helper that checks the divisor and special-cases `MIN_VALUE / -1`. `exceptions` now matches JDK 25; verified with a 52-case differential probe |
 | the reflection commit | **Method reflection.** `getDeclaredMethods()` was empty for user classes because TeaVM's `ReflectionDependencyListener` preserves only what a `ReflectionSupplier` lists, and the fork's `CompilerResourceSupplier` listed every field of an application class but no methods. `patches/CompilerResourceSupplier.java` mirrors the field rule; `reflection-members` now matches JDK 25. The rebuilt `compiler.wasm` is what ships in `assets/`, so this is also the first artifact built here rather than downloaded |
 | the Docker commit | `patches/Dockerfile` pins JDK 25 + Binaryen 133 and rebuilds the compiler in ~9 min; proven reproducible (the runtime glue is bit-for-bit identical) |
@@ -109,9 +110,9 @@ Worker protocol (do not break it; the LiveCodes wiring depends on this shape):
 | the exceptions commit | `TThrowable.suppressed` is never initialised → vendor it with lazy accessors; and enable the **stack deobfuscator** in the worker, vendoring `compiler.wasm-deobfuscator.wasm`, so `getStackTrace()` returns real frames |
 | `e1a9c29` | **The float cluster.** Found that `DecimalFormatSymbols.clone()` returns a vtable-less object under this WasmGC backend, vendored `TDecimalFormatSymbols` with an explicit copy, and vendored `TFormatter` with the missing `%e`/`%E` and `%n` conversions. Added `scripts/run-program.mjs` |
 
-Net: **130/145 → 139/145**, **14 → 6 regressions**, **compile 143/145 → 145/145**, nothing newly broken.
+Net: **130/145 → 140/145**, **14 → 5 regressions**, **compile 143/145 → 145/145**, nothing newly broken.
 Closed `stringformat`, `parse-format`, `string-format-more`, `io-writers`, `exceptions-suppressed`,
-`char-classes`, `instant-duration`, `reflection-members`, `exceptions`.
+`char-classes`, `instant-duration`, `reflection-members`, `exceptions`, `reflection`.
 
 The single most valuable thing added is `scripts/run-program.mjs` — see §6. It gives named Java stack
 traces for a wasm trap, which is what actually cracked both clusters after several wrong attributions
@@ -143,6 +144,10 @@ archives:
   `patches/CompilerResourceSupplier.java` (the `ReflectionSupplier`; keeps application-class methods)
 - `compiler/src/main/java/org/teavm/javac/DivisionCheckTransformer.java` — copy of
   `patches/DivisionCheckTransformer.java` (rewrites int/long division to the helper below)
+- `compiler/src/patches/java/org/teavm/model/analysis/ClassMetadataRequirements.java` — copy of
+  `patches/ClassMetadataRequirements.java`. This one is **TeaVM core, not a fork file**: a source in
+  `src/patches/java` shadows the core jar on the compiler's classpath (the same trick as the five
+  patches already there), so a core fix needs no fork patch point
 - `compiler/build.gradle` — the include list in `prepareTeaVMClassLib` (one line per vendored class)
 - `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...` — the vendored classes:
   `java/lang/TString` (`lines()`), `java/util/regex/TMatcher` (`results()`),
@@ -281,9 +286,7 @@ The faults, each with a measured diagnosis:
 | Program(s) | Fault |
 |---|---|
 | `exceptions-finally` | `try { return x; } finally { return y; }` emits invalid wasm (`expected 1 elements on the stack for fallthru`) |
-| `exceptions-stacktrace`, `exception-propagation` | a stream lambda over `StackTraceElement[]` that calls `getMethodName()` and *uses* the result traps; the frames themselves are correct now |
-| `enum-map-set` | shape-dependent: an inherited `TEnum.toString()` vtable slot / class metadata is missing for that program (a near-identical program works; an enum that overrides `toString()` works) |
-| `reflection` (only) | not codegen: `Class.forName`'s name map is built from the generated `ClassInfo` table, which only contains classes whose class object was already materialized (`String.class.getName()` first makes it resolve). Method reflection is fixed — `reflection-members` passes. Fixing `forName` means emitting name info for more classes in `WasmGCReflectionGenerator` |
+| `enum-map-set`, `exceptions-stacktrace`, `exception-propagation` | **one fault.** The object's vtable was left all-null while the call site reads the slot from the receiver's *static* type: `WasmGCVirtualTableBuilder` marks a table "used" only when a call site's **declaring** class matches (`groupMethodsFromCallSites` groups by `methodRef.getClassName()`), so a class that only *inherits* the method called on it — an enum relying on `Enum.toString`, a frame's `String` — is skipped, and `fillVirtualTableMethods` returns early without writing anything. Disassembled, not guessed: `FINDINGS.md` §4b, report in `poc/UPSTREAM.md` §8 |
 
 `Object.clone()` (`FINDINGS.md` §4b) is worth fixing first: it is the reason
 `TDecimalFormatSymbols.clone()` is vendored, and a real fix would let that class be deleted — the
@@ -291,7 +294,7 @@ preferred ending for every vendored class (§7 of `FINDINGS.md`).
 
 ### B. Wire LiveCodes (only when the user says the engine is ready)
 
-The exchange rate is explicit: 8 documented regressions, **all** of them codegen or deliberately
+The exchange rate is explicit: 5 documented regressions, **all** of them codegen or deliberately
 dropped (`file-io`), and every one already written up with a cause. Whether that is acceptable is the
 user's call — the original bar was "zero, or an explicitly documented accepted subset", and this is
 close to the second. Do not touch `D:\DevWork\live-codes\livecodes` before that call (§1).
@@ -303,9 +306,9 @@ to LiveCodes' `{code,input}` → `{input,output,error,exitCode}`, with `baseUrl`
 
 ### What is *not* worth doing
 
-- Chasing `enum-map-set` further in the class library — two different classlib-shaped hypotheses were
-  tested (append/builders, then the copy family) and the failure moves with the program, not with the
-  code. It is a codegen fault; see `FINDINGS.md` §9 for the evidence.
+- Chasing the remaining codegen faults in the class library — two classlib-shaped hypotheses were
+  tested for `enum-map-set` and the failure moves with the program, not with the code. The fault is
+  located now (`FINDINGS.md` §4b/§9); it belongs to the generator.
 - Adding more of `java.time` speculatively — it is ThreeTen, and it works; add a method only when a
   program needs it.
 
@@ -438,17 +441,16 @@ rewritten in minutes.
 
 1. **Decide the branch in §6** — fix the remaining codegen (needs a compiler rebuild, now proven) or
    wire LiveCodes. There is nothing else actionable: no class library is missing an API.
-2. **Codegen** — 4 regressions: `exceptions-finally`, `exceptions-stacktrace`,
-   `exception-propagation`, `enum-map-set`. Measured diagnoses in `FINDINGS.md` §4b and the table in
-   §6 above. Before reaching for the backend, note the two that were fixed in Java after looking like
-   backend work: `clone()` (a per-class field copy) and division (a `ClassHolderTransformer` plus a
-   class-library helper). `Object.clone()` is still worth fixing at the source: it is the only reason
+2. **Codegen** — 4 regressions, and really **two** faults: `exceptions-finally` (invalid wasm), and the
+   unfilled vtable behind `enum-map-set` + both `StackTraceElement` programs. Measured diagnoses in
+   `FINDINGS.md` §4b and the table in §6 above; the vtable one has a disassembly and names the two
+   generator classes. Before reaching for the backend, note the three that were fixed in Java after
+   looking like backend work: `clone()` (a per-class field copy), division (a `ClassHolderTransformer`
+   plus a class-library helper) and class names (a core patch through `compiler/src/patches/java`).
+   `Object.clone()` is still worth fixing at the source: it is the only reason
    `TDecimalFormatSymbols.clone()` is vendored.
-3. **`reflection`** — 1 regression, and only its last line (`Class.forName`): the generated `ClassInfo`
-   table only names classes whose class object was already materialized. Method reflection is fixed.
-   A `WasmGCReflectionGenerator` change, so also a rebuild.
-4. **`file-io`** — deliberate; there is no filesystem model in a browser. Do not "fix" it.
-5. **Publishing** `@live-codes/java-wasm` (version `0.0.1`, unpublished) — decide the SDK-patch
+3. **`file-io`** — deliberate; there is no filesystem model in a browser. Do not "fix" it.
+4. **Publishing** `@live-codes/java-wasm` (version `0.0.1`, unpublished) — decide the SDK-patch
    strategy first: we ship build outputs plus vendored classlib classes, not a rewritten third-party
    binary (FINDINGS §5). All five artifacts are in the repo now, and `assets/` is the source of truth,
    so the published package is reproducible from a clone with no network.
@@ -467,7 +469,13 @@ node scripts/compile-program.mjs --all              # expect 145/145 compiled
 node scripts/run-program.mjs stringformat --jdk     # expect MATCH (a 1 s end-to-end sanity check)
 node scripts/run-program.mjs exceptions --jdk       # expect MATCH (division semantics)
 node scripts/run-program.mjs reflection-members --jdk # expect MATCH (method reflection)
+node scripts/run-program.mjs reflection --jdk        # expect MATCH (class names + Class.forName)
 ```
+
+For the codegen faults, `--emit` + `wasm-dis` is the loop that worked:
+`node scripts/run-program.mjs enum-map-set --trace --emit D:\DevWork\tools\x.wasm` then
+`D:\DevWork\tools\binaryen-version_133\bin\wasm-dis.exe D:\DevWork\tools\x.wasm -o x.wat` — the
+standalone Binaryen tools read TeaVM's output where the npm `binaryen` binding does not.
 
 Then read §6: the next move is a decision (codegen rebuild vs LiveCodes wiring), not a task you can
 just start. Remember §7 before typing any shell one-liner.

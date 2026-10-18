@@ -234,6 +234,33 @@ sub-normal and zero arguments (`stringformat`, `parse-format`, `string-format-mo
 `System.lineSeparator()`, which is `"\n"` here — `io-writers` prints `chars=11` where a *Windows* JDK
 prints 13, because the JDK there emits `\r\n`; the browser target wants `\n`.
 
+## Compiler patch + class-library helper: integer division by zero
+
+**The bug.** `10 / 0` traps in wasm (`RuntimeError: divide by zero`) instead of throwing
+`ArithmeticException`, so a surrounding `catch` never runs. `BaseWasmGenerationVisitor` maps
+`DIVIDE` straight to `WasmIntBinaryOperation.DIV_SIGNED` (and `MODULO` to `REM_SIGNED`) with no zero
+check. Java also requires `MIN_VALUE / -1` to be `MIN_VALUE`, where wasm's `div_s` traps on overflow.
+Unlike bounds and null checks, the backend has no instruction or helper to reuse for this.
+
+**The fix, in two pieces.**
+
+1. `Division.java` (here, and in `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/impl/math/`)
+   — `div`/`rem` for `int` and `long` that throw `ArithmeticException("/ by zero")`, special-case
+   `MIN_VALUE / -1`, and otherwise use plain `/` and `%`. It is listed in `prepareTeaVMClassLib`'s
+   include list so the runtime archive carries it.
+2. `DivisionCheckTransformer.java` (here, and in `compiler/src/main/java/org/teavm/javac/`) — a
+   `ClassHolderTransformer` that rewrites every `BinaryInstruction` with `DIVIDE`/`MODULO` on
+   `INT`/`LONG` into a static call to the helper. It skips the helper class itself (otherwise the
+   rewrite recurses), and leaves floating-point arithmetic alone. `Compiler.createTeaVM` registers it
+   **only for `WasmGCTarget`**: the JavaScript backend already lowers division to its own throwing
+   runtime helper.
+
+**Verified.** `exceptions` matches JDK 25, and a 52-case differential probe (every combination of
+`{10, -10, 7, MIN_VALUE, 0, MAX_VALUE}` over `{3, -3, 1, -1, 2, MIN_VALUE}`, plus the `long` cases)
+matches too — including `MIN_VALUE / -1`, `MIN_VALUE % -1` and the `/ by zero` message.
+
+This is a **compiler** change, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above).
+
 ## Compiler patch: `CompilerResourceSupplier` (reflection)
 
 `CompilerResourceSupplier.java` here is a drop-in replacement for

@@ -37,27 +37,29 @@ Measured on `corpus/` (145 programs), last full run:
 
 | | |
 |---|---|
-| Pass | **138 / 145** |
+| Pass | **139 / 145** |
 | Compile | **145 / 145** |
-| Regressions (work on Doppio, fail here) | **7** |
+| Regressions (work on Doppio, fail here) | **6** |
 | Fails on both engines | **0** |
 
-Failing programs (7): `exceptions`, `exceptions-finally`, `exceptions-stacktrace`,
-`exception-propagation`, `reflection`, `enum-map-set`, `file-io`.
+Failing programs (6): `exceptions-finally`, `exceptions-stacktrace`, `exception-propagation`,
+`reflection`, `enum-map-set`, `file-io`.
 
 Where each cluster lives is in `FINDINGS.md` §4. The short version:
 
-- **All 7 remaining failures are regressions**, and the corpus compiles **145/145**.
-- **No class-library work is left.** Every remaining failure is either **code generation** (5:
-  `exceptions`, `exceptions-finally`, the two `StackTraceElement` stream-lambda programs,
-  `enum-map-set`), **compiler-side metadata** (1: `reflection`'s last line, `Class.forName`), or
-  **deliberate** (1: `file-io`).
-- Those six are all one kind of work — a `compiler.wasm` rebuild, which is now **proven to work**
-  (§6A). `FINDINGS.md` §4b/§9 have the measured diagnoses.
+- **All 6 remaining failures are regressions**, and the corpus compiles **145/145**.
+- **No class-library work is left.** Every remaining failure is either **code generation** (4:
+  `exceptions-finally`, the two `StackTraceElement` stream-lambda programs, `enum-map-set`),
+  **compiler-side metadata** (1: `reflection`'s last line, `Class.forName`), or **deliberate** (1:
+  `file-io`).
+- Those five are all one kind of work — a wasm-backend/`ClassInfo` change, which needs a
+  `compiler.wasm` rebuild. **The rebuild is proven** (§6A), so the loop is: patch, ~9 min, corpus.
+  Note that two faults *looked* like backend work and were fixed in Java instead (§4b: `clone()` in
+  the class library, division by a `ClassHolderTransformer`) — try that shape first.
 
-Git: `D:\DevWork\live-codes\java` is **clean** at the tip of `main` (seven commits this session: the
+Git: `D:\DevWork\live-codes\java` is **clean** at the tip of `main` (nine commits this session: the
 float cluster, exceptions/stack-trace, `char-classes`, the committed artifacts, `instant-duration`, the
-Docker build recipe, and the reflection compiler patch).
+Docker build recipe, the reflection compiler patch, the UPSTREAM refresh, and the division fix).
 
 ---
 
@@ -98,6 +100,7 @@ Worker protocol (do not break it; the LiveCodes wiring depends on this shape):
 
 | Commit | What |
 |---|---|
+| the division commit | **Integer division by zero.** The WasmGC backend emits `div_s`/`rem_s` with no check, so `10 / 0` trapped instead of throwing `ArithmeticException`. `DivisionCheckTransformer` (a `ClassHolderTransformer` registered for `WasmGCTarget`) rewrites int/long `DIVIDE`/`MODULO` into calls to a new class-library `Division` helper that checks the divisor and special-cases `MIN_VALUE / -1`. `exceptions` now matches JDK 25; verified with a 52-case differential probe |
 | the reflection commit | **Method reflection.** `getDeclaredMethods()` was empty for user classes because TeaVM's `ReflectionDependencyListener` preserves only what a `ReflectionSupplier` lists, and the fork's `CompilerResourceSupplier` listed every field of an application class but no methods. `patches/CompilerResourceSupplier.java` mirrors the field rule; `reflection-members` now matches JDK 25. The rebuilt `compiler.wasm` is what ships in `assets/`, so this is also the first artifact built here rather than downloaded |
 | the Docker commit | `patches/Dockerfile` pins JDK 25 + Binaryen 133 and rebuilds the compiler in ~9 min; proven reproducible (the runtime glue is bit-for-bit identical) |
 | the `instant-duration` commit | **`Duration.toXxxPart()`.** `java.time` here is the bundled **ThreeTen backport** (`org.threeten.bp.*`, mapped to `java/time/` by `StdlibConverter`), which predates Java 9, so the accessor family was missing from the API and the SDK. Vendored `org/threeten/bp/Duration` with the six accessors. Compile is now **145/145** |
@@ -106,9 +109,9 @@ Worker protocol (do not break it; the LiveCodes wiring depends on this shape):
 | the exceptions commit | `TThrowable.suppressed` is never initialised → vendor it with lazy accessors; and enable the **stack deobfuscator** in the worker, vendoring `compiler.wasm-deobfuscator.wasm`, so `getStackTrace()` returns real frames |
 | `e1a9c29` | **The float cluster.** Found that `DecimalFormatSymbols.clone()` returns a vtable-less object under this WasmGC backend, vendored `TDecimalFormatSymbols` with an explicit copy, and vendored `TFormatter` with the missing `%e`/`%E` and `%n` conversions. Added `scripts/run-program.mjs` |
 
-Net: **130/145 → 138/145**, **14 → 7 regressions**, **compile 143/145 → 145/145**, nothing newly broken.
+Net: **130/145 → 139/145**, **14 → 6 regressions**, **compile 143/145 → 145/145**, nothing newly broken.
 Closed `stringformat`, `parse-format`, `string-format-more`, `io-writers`, `exceptions-suppressed`,
-`char-classes`, `instant-duration`, `reflection-members`.
+`char-classes`, `instant-duration`, `reflection-members`, `exceptions`.
 
 The single most valuable thing added is `scripts/run-program.mjs` — see §6. It gives named Java stack
 traces for a wasm trap, which is what actually cracked both clusters after several wrong attributions
@@ -138,6 +141,8 @@ archives:
 - `compiler/src/main/java/org/teavm/javac/ArchiveBuilder.java` — copy of `patches/ArchiveBuilder.java`
 - `compiler/src/main/java/org/teavm/javac/CompilerResourceSupplier.java` — copy of
   `patches/CompilerResourceSupplier.java` (the `ReflectionSupplier`; keeps application-class methods)
+- `compiler/src/main/java/org/teavm/javac/DivisionCheckTransformer.java` — copy of
+  `patches/DivisionCheckTransformer.java` (rewrites int/long division to the helper below)
 - `compiler/build.gradle` — the include list in `prepareTeaVMClassLib` (one line per vendored class)
 - `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...` — the vendored classes:
   `java/lang/TString` (`lines()`), `java/util/regex/TMatcher` (`results()`),
@@ -145,8 +150,9 @@ archives:
   `java/lang/TThrowable` (lazy `suppressed`), `java/lang/TCharacter` (`Character.Subset` and
   `Character.UnicodeBlock` appended; its block data is generated — see below),
   `org/threeten/bp/Duration` (the Java 9 `toXxxPart()` accessors — note this is the package
-  `java.time` is converted from, so it fixes `java.time.Duration`). Each change is marked
-  `Fork addition:`
+  `java.time` is converted from, so it fixes `java.time.Duration`), and
+  `org/teavm/classlib/impl/math/Division` (a **new** class: division/remainder that throw on a zero
+  divisor — the target of `DivisionCheckTransformer`). Each change is marked `Fork addition:`
 
 (`git status` in the clone also shows leftover scratch: `b1.txt`…`b5.txt`, `sdk-*.bin`, etc. Ignore.)
 
@@ -274,7 +280,6 @@ The faults, each with a measured diagnosis:
 
 | Program(s) | Fault |
 |---|---|
-| `exceptions` | integer divide-by-zero: `BaseWasmGenerationVisitor` maps `DIVIDE` straight to `WasmIntBinaryOperation.DIV_SIGNED`, with no zero check — the wasm op traps instead of throwing `ArithmeticException`. Unlike bounds/class-cast checks there is **no existing check machinery to reuse**: `BoundCheckExpr` assumes the check passed, and the backend throws only via `WasmThrow`/`context.getExceptionTag()`. Fixing it means new IR or backend work (and `MODULO` too) |
 | `exceptions-finally` | `try { return x; } finally { return y; }` emits invalid wasm (`expected 1 elements on the stack for fallthru`) |
 | `exceptions-stacktrace`, `exception-propagation` | a stream lambda over `StackTraceElement[]` that calls `getMethodName()` and *uses* the result traps; the frames themselves are correct now |
 | `enum-map-set` | shape-dependent: an inherited `TEnum.toString()` vtable slot / class metadata is missing for that program (a near-identical program works; an enum that overrides `toString()` works) |
@@ -433,10 +438,12 @@ rewritten in minutes.
 
 1. **Decide the branch in §6** — fix the remaining codegen (needs a compiler rebuild, now proven) or
    wire LiveCodes. There is nothing else actionable: no class library is missing an API.
-2. **Codegen** — 5 regressions, one rebuild away each: `exceptions`, `exceptions-finally`,
-   `exceptions-stacktrace`, `exception-propagation`, `enum-map-set`. Measured diagnoses in
-   `FINDINGS.md` §4b and the table in §6 above. `Object.clone()` is the one to take first: it is the
-   only reason `TDecimalFormatSymbols.clone()` is vendored.
+2. **Codegen** — 4 regressions: `exceptions-finally`, `exceptions-stacktrace`,
+   `exception-propagation`, `enum-map-set`. Measured diagnoses in `FINDINGS.md` §4b and the table in
+   §6 above. Before reaching for the backend, note the two that were fixed in Java after looking like
+   backend work: `clone()` (a per-class field copy) and division (a `ClassHolderTransformer` plus a
+   class-library helper). `Object.clone()` is still worth fixing at the source: it is the only reason
+   `TDecimalFormatSymbols.clone()` is vendored.
 3. **`reflection`** — 1 regression, and only its last line (`Class.forName`): the generated `ClassInfo`
    table only names classes whose class object was already materialized. Method reflection is fixed.
    A `WasmGCReflectionGenerator` change, so also a rebuild.
@@ -458,7 +465,8 @@ set "TEAVM_JAVAC_DIST=D:\DevWork\teavm-javac-build\dist\teavm-javac"
 node scripts/sdk-check.mjs                          # expect 7/7
 node scripts/compile-program.mjs --all              # expect 145/145 compiled
 node scripts/run-program.mjs stringformat --jdk     # expect MATCH (a 1 s end-to-end sanity check)
-node scripts/run-program.mjs reflection-members --jdk # expect MATCH (the newest fix: method reflection)
+node scripts/run-program.mjs exceptions --jdk       # expect MATCH (division semantics)
+node scripts/run-program.mjs reflection-members --jdk # expect MATCH (method reflection)
 ```
 
 Then read §6: the next move is a decision (codegen rebuild vs LiveCodes wiring), not a task you can

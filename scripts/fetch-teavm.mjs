@@ -26,7 +26,7 @@ const TEAVM_VERSION = '0.14.1';
 
 // sha256 of each artifact as committed in assets/.
 const ARTIFACTS = {
-  'compiler.wasm': '33d2929fff4ab4963a40dcb52a69dc96cc40ef9fe5bcb489a1294435330a2c5b',
+  'compiler.wasm': '2d21668e353b11ec57902e8555015a085ab39ed5438e8b4715e550f2a63f59ca',
   'compiler.wasm-runtime.js': '4709a64b0b979090bb14999720576d614f13127932109ea3c9638154c04887cc',
   // Generic stack-trace deobfuscator. It reads the debug info a generated module carries *embedded*
   // (the fork always emits it — `WasmDebugInfoLocation.EMBEDDED` in Compiler.java), so the same 40 KB
@@ -37,10 +37,10 @@ const ARTIFACTS = {
   // The javac SDK: StdlibConverter fixes six bugs that otherwise leak TeaVM internals into the API
   // javac reads (`@Rename`d members, InnerClasses, duplicated members, abstract `default`s,
   // self-extending `Annotation`, element-less annotations). patches/StdlibConverter.java.
-  'compile-classlib-teavm.bin': '28f392c4af2c29986426ca2bf63259b328ebd5c8557348dc4c37172a7d90e251',
+  'compile-classlib-teavm.bin': '4aa3e10d5e96f966e9de7b65c700a4181ab3ca6195d41fd916305072611462d1',
   // The runtime class library, which additionally carries the vendored classlib classes
   // (`String.lines()`, `Matcher.results()`, …) and the ArchiveBuilder separator fix.
-  'runtime-classlib-teavm.bin': '2012d1cd9d961ff05e0c1a21702df3d8b305f1be88fe4381f6b073f322d30e3e',
+  'runtime-classlib-teavm.bin': '389ce53730817d40e90c812b57ce863ae65f5a21d55a0431e4a50696db5741b7',
 };
 
 const assetsDir = join(fileURLToPath(new URL('..', import.meta.url)), 'assets');

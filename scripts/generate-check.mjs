@@ -15,11 +15,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const compilerDir = process.env.TEAVM_JAVAC_DIST;
-if (!compilerDir) {
-  console.error('Set TEAVM_JAVAC_DIST to the teavm-javac dist folder (see patches/README.md).');
-  process.exit(2);
-}
+// Default to the engine this package ships (dist/teavm/); override to try another compiler build.
+const compilerDir = process.env.TEAVM_JAVAC_DIST ?? join(root, 'dist', 'teavm');
 if (!process.argv[2]) {
   console.error('Usage: node scripts/generate-check.mjs <corpus-program-id>...');
   process.exit(2);

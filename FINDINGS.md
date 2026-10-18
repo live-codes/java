@@ -26,22 +26,23 @@ Measured on `corpus/` (145 programs, run in Chrome):
 
 | | |
 |---|---|
-| Pass | **137 / 145** |
+| Pass | **138 / 145** |
 | Compile | **145 / 145** |
-| "Works on Doppio, fails here" (regressions) | **8** |
+| "Works on Doppio, fails here" (regressions) | **7** |
 | "Fails on both engines" | **0** |
 
-Measured on a full run. Every program now compiles, and **every remaining failure is a regression** —
+Measured on a full run. Every program compiles, and **every remaining failure is a regression** —
 there is no "broken on both engines" left to hide behind.
 
 Every class-library addition below (`String.lines()`, `Matcher.results()`, the `%e`/`%E` and `%n` format
 conversions, the `DecimalFormatSymbols` clone, the `suppressed` field, `Character.UnicodeBlock`,
-`Duration.toXxxPart()`) is separately confirmed by running the affected programs and diffing the output
-against JDK 25 — `regex-groups`, `var-textblock`, `text-block-more`, `stringformat`, `parse-format`,
-`string-format-more`, `io-writers`, `exceptions-suppressed`, `char-classes` and `instant-duration` all
-pass.
+`Duration.toXxxPart()`) and the compiler patch (`CompilerResourceSupplier`, method reflection) is
+separately confirmed by running the affected programs and diffing the output against JDK 25 —
+`regex-groups`, `var-textblock`, `text-block-more`, `stringformat`, `parse-format`,
+`string-format-more`, `io-writers`, `exceptions-suppressed`, `char-classes`, `instant-duration` and
+`reflection-members` all pass.
 
-The headline is the regression count, not the pass count: 8 of the 145 work today on the current
+The headline is the regression count, not the pass count: 7 of the 145 work today on the current
 engine and do not work here. That is the number that decides whether this can replace Doppio, and it
 is why this is not yet a straight swap.
 
@@ -213,7 +214,8 @@ nevertheless **worked around** for the classes that matter, in the class library
 | ~~`Throwable.suppressed` null~~ — **fixed here** | `exceptions-suppressed`. The field initializer never runs (TeaVM constructs through the `@Rename("<init>")` `init(…)` methods, not the real constructor), so `addSuppressed`/`getSuppressed` dereferenced null. `TThrowable` vendored with lazy accessors |
 | ~~`getStackTrace()` fake/incomplete frames~~ — **fixed here** | `exceptions-stacktrace`, `exception-propagation` get *real* frames now (class and method names), because the worker enables the stack deobfuscator and ships `compiler.wasm-deobfuscator.wasm`. Both programs still fail on the codegen fault in §4b, which is now the only thing left |
 | `EnumSet`/`EnumMap` null pointer in `AbstractStringBuilder.insert` | `enum-map-set` |
-| Reflection: subset only | `reflection`, `reflection-members` |
+| ~~Reflection methods~~ — **fixed here** | `reflection-members`. Class/field reflection already worked, but `getDeclaredMethods()` returned empty, so `getMethod`/`getDeclaredMethod` always threw. `ReflectionDependencyListener` preserves only the members a `ReflectionSupplier` lists, and the fork's supplier listed all *fields* for application classes but no *methods*; the compiler patch mirrors the field rule (§5, `patches/README.md`) |
+| `Class.forName` for a class whose class object was never touched | `reflection`'s last line. `TClass.forName` builds its name map from generated `ClassInfo`, which only contains classes already materialized — `String.class.getName()` earlier in the same program makes it resolve. A wasmGC metadata limitation, not the supplier |
 
 `String.lines()` was in this list and is **fixed** — see §5 and `patches/README.md` for the recipe.
 Everything marked *fixed here* is either a one-shot vendored class or (for real stack traces) a loader
@@ -231,7 +233,7 @@ option in the worker; none of them needed the compiler rebuilt.
 
 ## 5. What we patch
 
-Three files, all drop-in replacements in the fork, plus a set of vendored class-library classes.
+Four files, all drop-in replacements in the fork, plus a set of vendored class-library classes.
 `patches/README.md` has the details and reproduction steps; the short version:
 
 1. **`StdlibConverter.java`** — applies `@Rename`, renames `InnerClasses`/`EnclosingMethod`/nest
@@ -244,7 +246,12 @@ Three files, all drop-in replacements in the fork, plus a set of vendored class-
    with `dereferencing a null pointer`, `hello` included. On Linux the separator is already `/`, so the
    change is a no-op — which is why the fork's CI artifacts were never affected and only local
    builds broke. This was the blocker for all classlib work.
-3. **Vendored class-library classes**, in `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...`
+3. **`CompilerResourceSupplier.java`** — the `ReflectionSupplier` the fork registers for the compiler.
+   TeaVM's `ReflectionDependencyListener` preserves only the members a supplier lists; this one listed
+   every **field** of an application class but no **methods**, so `getDeclaredMethods()` was empty and
+   `getMethod`/`getDeclaredMethod` always threw. The patch mirrors the field rule for methods. This is
+   a **compiler** change — `:compiler:optimizeWasmGC`, not the archives.
+4. **Vendored class-library classes**, in `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...`
    and each listed by name in `prepareTeaVMClassLib`'s include list:
 
    | Class | Change |
@@ -263,7 +270,7 @@ Three files, all drop-in replacements in the fork, plus a set of vendored class-
    JDK rather than assumed — `Subset.equals`/`hashCode` are **identity**-based, so `hashCode` is not
    `name.hashCode()`.
 
-4. **The stack deobfuscator**, which is not a patch but a loader option the worker now passes when it
+5. **The stack deobfuscator**, which is not a patch but a loader option the worker now passes when it
    instantiates a program, plus the `compiler.wasm-deobfuscator.wasm` artifact that makes it work
    (`scripts/fetch-teavm.mjs` vendors it; `scripts/build.mjs` copies it next to `compiler.wasm`). See
    §2: this is what turns `getStackTrace()` from TeaVM's stand-in frames into real ones.
@@ -314,11 +321,12 @@ cp compiler/build/classlib/runtime-classlib-teavm.bin  assets/
 # update SDK_SHA256 / RUNTIME_SHA256 in scripts/fetch-teavm.mjs
 ```
 
-`npm run vendor:teavm` downloads the three compiler artifacts (`compiler.wasm`,
-`compiler.wasm-runtime.js`, `compiler.wasm-deobfuscator.wasm`) from the pinned commit and copies the
-two classlib archives from `assets/`, checksum-verifying all five. `npm run build` then writes `dist/`.
-Nothing rewrites a third-party binary at vendoring time: the archives are build outputs, reproducible
-from the pinned commit plus the patches, and the deobfuscator is a stock artifact of that commit.
+`npm run vendor:teavm` copies all five artifacts from `assets/` into `vendor/teavm/`, checksum-verifying
+each — **nothing is downloaded**, so a clone builds and runs offline. `npm run build` then writes
+`dist/`. `assets/` is the source of truth: the two archives are outputs of the fork build, and
+`compiler.wasm` is too now that it carries `patches/CompilerResourceSupplier.java` (§5). Provenance for
+every file — the pinned fork commit, the patches that apply, and the upstream URL for diffing — is in
+`scripts/fetch-teavm.mjs`'s header.
 
 ### Rebuilding the compiler (`compiler.wasm`) — proven, and reproducible
 
@@ -488,7 +496,7 @@ wasm, both codegen.
 | Item | What it takes |
 |---|---|
 | `EnumSet`/`EnumMap` (`enum-map-set`) | reduced to a **codegen** fault, not fixable in the class library. The trap is `AbstractStringBuilder.insert(int, char)` on a null `buffer`, reached from the `StringBuilder` that `AbstractMap.toString`/`AbstractCollection.toString` build — TeaVM's method *copies* (`insert_0`, `insert_4`, `append(204)`). It is shape-dependent, which is the tell: a near-identical program (`HashMap<Level,Integer>` printed with `+`, and an `EnumMap` printed in isolation) produces correct output, and giving the enum its **own** `toString()` makes the exact corpus shape work. Without that override, a *virtual* call to the inherited `TEnum.toString()` traps while the final `name()`/`ordinal()` on the same object work, and `getClass().getName()` on it returns null. Same family as the `Object.clone()` bug in §4b: a vtable slot / class metadata that the generator did not emit correctly for that program. **Needs Binaryen and a codegen fix** |
-| `reflection`, `reflection-members` | reduced: **class and field** reflection work (`getName`, `getSimpleName`, `getDeclaredFields`, `getField`, `Field.getInt`/`setInt`), and both programs die cleanly on `getDeclaredMethod`/`getMethod` with `NoSuchMethodException`. Field metadata is generated but method metadata is not, and the fork's `Compiler.java` never installs a reflection dependency listener, so members that are only reached through reflection are pruned before metadata generation. **Compiler-side**: adding the listener means rebuilding `compiler.wasm` (Binaryen), or wiring a TeaVM option that preserves them |
+| `reflection` | **only its last line is left**: `Class.forName("java.lang.String")`. `TClass.forName` builds its name map from the generated `ClassInfo` table, which contains only classes whose class object was already materialized — calling `String.class.getName()` earlier in the same program makes it resolve. Everything else in the program (class and method reflection, including `invoke`) now matches the JDK. Fixing it means emitting name info for more classes in `WasmGCReflectionGenerator` (a compiler change), or documenting "forName sees initialized classes only" |
 | `exceptions-finally`, `exceptions`, and the two `StackTraceElement` programs | codegen: needs Binaryen + a `compiler.wasm` rebuild, or an upstream TeaVM fix |
 
 The two remaining runtime faults are bugs rather than absences, so they need reducing before they can
@@ -499,9 +507,10 @@ read only the class that frame names.
 
 The float cluster (`stringformat`, `parse-format`, `string-format-more` — one `Object.clone()` bug,
 §4b/§5), `io-writers` (`%n`), `exceptions-suppressed` (`Throwable.suppressed`), `char-classes`
-(`Character.UnicodeBlock`, generated from the JDK), and `instant-duration` (`Duration.toXxxPart()`,
-which also took the compile count to **145/145**). Each was verified by diffing the program's output
-against JDK 25, not just by the corpus going green.
+(`Character.UnicodeBlock`, generated from the JDK), `instant-duration` (`Duration.toXxxPart()`, which
+also took the compile count to **145/145**), and `reflection-members` (the `CompilerResourceSupplier`
+patch, §5). Each was verified by diffing the program's output against JDK 25, not just by the corpus
+going green.
 
 ### Beyond the class library
 

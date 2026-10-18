@@ -233,3 +233,36 @@ JDK always does. Verified against JDK 25 for `%e`, `%.2e`, `%.0e`, `%E`, `%+e`, 
 sub-normal and zero arguments (`stringformat`, `parse-format`, `string-format-more`). `%n` uses
 `System.lineSeparator()`, which is `"\n"` here — `io-writers` prints `chars=11` where a *Windows* JDK
 prints 13, because the JDK there emits `\r\n`; the browser target wants `\n`.
+
+## Compiler patch: `CompilerResourceSupplier` (reflection)
+
+`CompilerResourceSupplier.java` here is a drop-in replacement for
+`compiler/src/main/java/org/teavm/javac/CompilerResourceSupplier.java` in the fork. It is already
+registered as a `ReflectionSupplier` service
+(`compiler/src/main/resources/META-INF/services/org.teavm.classlib.ReflectionSupplier`), so only the
+class body changes.
+
+**The bug.** `Class.getDeclaredMethods()` returned an **empty array** for user classes, and
+`getDeclaredMethod`/`getMethod` therefore always threw `NoSuchMethodException` — while
+`getDeclaredFields()`, `Field.getInt`/`setInt`, `getName`, `getSimpleName` and annotations all worked.
+TeaVM's `ReflectionDependencyListener` does not preserve members by itself: it asks each
+`ReflectionSupplier` which members of a reflected class are accessible, then links exactly those. The
+fork's supplier answered "all fields" for application classes but, for methods, only a default
+constructor on three compiler-internal classes (Rhino/RegExp) — so no method metadata was ever
+generated.
+
+**The fix.** Mirror the field rule for methods: an application class keeps all of its methods. The
+`isApplicationClass` filter already excludes `java.*`, `org.teavm.*`, `org.threeten.*` and friends, so
+classlib internals stay out, and the cost stays bounded because the listener only asks about classes
+whose `Class` object actually reaches a reflection API.
+
+**Effect, measured.** `reflection-members` now matches JDK 25 byte for byte, including a `private`
+method invoked through `setAccessible(true)`. `reflection` gets through
+`getDeclaredMethod("describe").invoke(t)` and fails only at its last line, `Class.forName`: that
+resolves names from the generated `ClassInfo` table and only sees classes whose class object has
+already been materialized (`String.class.getName()` first makes it work) — a separate wasmGC metadata
+limitation, not this patch.
+
+This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above), not
+just the class-library archives. The rebuilt `compiler.wasm` is committed in `assets/` — see
+`FINDINGS.md` §6.

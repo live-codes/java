@@ -18,11 +18,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const compilerDir = process.env.TEAVM_JAVAC_DIST;
-if (!compilerDir) {
-  console.error('Set TEAVM_JAVAC_DIST to the teavm-javac dist folder (see patches/README.md).');
-  process.exit(2);
-}
+// Default to the engine this package actually ships (dist/teavm/), so the runner tests the committed
+// artifacts. Point TEAVM_JAVAC_DIST elsewhere to try a different compiler build.
+const compilerDir = process.env.TEAVM_JAVAC_DIST ?? join(root, 'dist', 'teavm');
 
 const args = process.argv.slice(2);
 const flags = { file: null, input: '', jdk: false, keep: false, trace: false, emit: null, listOutputs: false };

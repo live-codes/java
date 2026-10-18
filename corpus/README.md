@@ -32,21 +32,22 @@ Raw results land in `corpus/results.json` (`results-only.json` for a filtered ru
 Programs must print deterministic output — sort maps and sets before printing, or the two engines
 differ for reasons that have nothing to do with correctness.
 
-## Result: 137/145 pass, and all **8 remaining failures are regressions**
+## Result: 138/145 pass, and all **7 remaining failures are regressions**
 
-java-wasm runs 137 of 145. That hides the number that matters for a switch: **all 8 failures work
+java-wasm runs 138 of 145. That hides the number that matters for a switch: **all 7 failures work
 today on the current engine** — there is no "broken on both engines" left. On this corpus that is a
-5.5% regression rate.
+4.8% regression rate.
 
-Four clusters closed most recently. `stringformat`, `parse-format` and `string-format-more` were one
-bug: every `DecimalFormat` clones its `DecimalFormatSymbols`, and `Object.clone()` produces an object
-with no vtable under this WasmGC backend, so the first virtual call on the copy trapped (see
-`FINDINGS.md` §4b); `io-writers` was a missing `%n`, `exceptions-suppressed` a `Throwable` field that
-is never initialised, `char-classes` needed `Character.UnicodeBlock` (absent from TeaVM entirely), and
-`instant-duration` needed `Duration.toXxxPart()` — which also took compilation to **145/145**.
-`getStackTrace()` returns real frames now instead of TeaVM's `Throwable$FakeClass.fakeMethod` stand-in,
-which the two remaining exception programs need but do not yet pass — they still hit a code-generation
-fault (`FINDINGS.md` §4b).
+Recent closures. `stringformat`, `parse-format` and `string-format-more` were one bug: every
+`DecimalFormat` clones its `DecimalFormatSymbols`, and `Object.clone()` produces an object with no
+vtable under this WasmGC backend, so the first virtual call on the copy trapped (see `FINDINGS.md`
+§4b); `io-writers` was a missing `%n`, `exceptions-suppressed` a `Throwable` field that is never
+initialised, `char-classes` needed `Character.UnicodeBlock` (absent from TeaVM entirely),
+`instant-duration` needed `Duration.toXxxPart()` (which also took compilation to **145/145**), and
+`reflection-members` needed the compiler's `ReflectionSupplier` to keep application-class *methods*,
+not just fields. `getStackTrace()` returns real frames now instead of TeaVM's
+`Throwable$FakeClass.fakeMethod` stand-in, which the two remaining exception programs need but do not
+yet pass — they still hit a code-generation fault (`FINDINGS.md` §4b).
 
 Eight of the bugs the corpus found were in the fork rather than in TeaVM itself, and are fixed by
 the patches in `patches/` (see `patches/README.md`): `list-deque-queue`
@@ -61,12 +62,12 @@ Timings for the whole set: init 0.3–2 s, javac 1–13 s, **wasm generation 51�
 The spread is run-to-run variance on one machine (load-dependent), not a spread across programs;
 generation dominates either way.
 
-### Regressions — work on Doppio, fail on java-wasm (16 found, 8 remain)
+### Regressions — work on Doppio, fail on java-wasm (16 found, 7 remain)
 
 | # | Programs | Failure | Cause |
 |---|---|---|---|
 | 1 | ~~`stringformat`, `parse-format`, `string-format-more`~~ — fixed | — | every `DecimalFormat` clones its `DecimalFormatSymbols`; `Object.clone()` gives the copy no vtable under this WasmGC backend, so the first virtual call on it trapped. Worked around in the class library (§4b/§5 of `FINDINGS.md`) |
-| 2 | `reflection`, `reflection-members` | `NoSuchMethodException` from `getDeclaredMethod`/`getMethod` | class and field reflection work; **method** metadata is not generated, because members only reached through reflection are pruned before metadata generation and the fork never installs a reflection dependency listener. Compiler-side (`FINDINGS.md` §9) |
+| 2 | ~~`reflection-members`~~ — fixed; `reflection` reduced | `NoSuchMethodException` from `getDeclaredMethod`/`getMethod` | class and field reflection always worked; **method** metadata was empty because TeaVM preserves only the members a `ReflectionSupplier` lists and the fork's listed all fields but no methods. Fixed by `patches/CompilerResourceSupplier.java`. `reflection` is now down to its last line, `Class.forName`, which only resolves classes whose class object was already touched (`FINDINGS.md` §9) |
 | 3 | `exceptions` | wasm traps on integer divide-by-zero | no `ArithmeticException` |
 | 4 | `exceptions-finally` | `expected 1 elements on the stack for fallthru` | `try { return } finally { return }` compiles to invalid wasm |
 | 5 | ~~`exceptions-suppressed`~~ — fixed | — | `Throwable.suppressed` is never initialised (TeaVM constructs through the `@Rename("<init>")` `init(…)` methods), so `addSuppressed` dereferenced null. `TThrowable` vendored with lazy accessors |
@@ -107,7 +108,7 @@ wrong: `interfaces` throws `NullPointerException` where java-wasm prints the rig
 
 ## Caveat
 
-145 hand-written programs still only sample the API, and they were written to probe gaps, so 5.5%
+145 hand-written programs still only sample the API, and they were written to probe gaps, so 4.8%
 is not a prediction of the real-world rate. It is measured rather than inferred — and the
 remaining regressions cluster in exception handling and reflection, which ordinary
 beginner-to-intermediate Java does use.

@@ -214,23 +214,37 @@ Current pins (all five in `scripts/fetch-teavm.mjs`): SDK
 `fcff0859ca4af0f5622ae901fa3a1d796c37efdbf4dbe872ebfea221700829b6` (plus the three compiler artifacts
 from the pinned commit).
 
-### Building the compiler (`compiler.wasm`) — container, ~9 min, proven
+### Building the compiler (`compiler.wasm`) — container, ~5–9 min, proven
 
-Only needed if you change codegen or TeVM internals (`FINDINGS.md` §6 has the detail and the artifact
+Only needed if you change codegen or TeaVM internals (`FINDINGS.md` §6 has the detail and the artifact
 paths). `patches/Dockerfile` pins JDK 25 + Binaryen 133:
 
 ```bash
 cd /path/to/teavm-javac
 docker build -f patches/Dockerfile -t teavm-javac-build .
-docker run --rm -v "$PWD":/work -v teavm-gradle:/root/.gradle teavm-javac-build \
-    bash ./gradlew :compiler:optimizeWasmGC --console=plain --no-daemon
+tar -czf ../src.tgz --exclude=./compiler/build --exclude=./javac/build \
+    --exclude=./protocol/build --exclude=./.gradle --exclude=./dist .
+docker run -d --name teavm-build -v "$PWD/../src.tgz:/tmp/src.tgz:ro" -v teavm-gradle:/root/.gradle \
+    teavm-javac-build bash -c "tar -xzf /tmp/src.tgz -C /work; cd /work && bash ./gradlew \
+    :compiler:generateClassLib :compiler:buildTeaVMClassLib :compiler:optimizeWasmGC --console=plain --no-daemon"
 ```
 
-Measured: 8m53s cold. It reproduces `compiler.wasm-runtime.js` **bit-for-bit**, and the rebuilt
-`compiler.wasm` gives the same corpus result (137/145) — but it is **not byte-identical** to the pinned
-one (different `wasm-opt`), so run the corpus before swapping it. Two practical notes: build **inside**
-the container (a Windows bind mount makes Gradle's hashing pathologically slow — copy the ~38 MB source
-in), and `gradlew` from a Windows checkout has CRLF line endings, so strip them first.
+That one command does everything — both class-library archives **and** the compiler — which is what a
+change to either needs (the archives are built on Linux, so no `ArchiveBuilder` separator worry).
+Measured: 8m53s cold, 4m30s when the Gradle cache is warm. It reproduces `compiler.wasm-runtime.js`
+**bit-for-bit**; a rebuilt `compiler.wasm` is **not** byte-identical to the pinned one (different
+`wasm-opt`), so run the corpus before swapping it — that is how both fixes this session were landed.
+
+Three practical notes: build **inside** the container (a Windows bind mount makes Gradle's hashing
+pathologically slow — copy the source in as the tar above does); `gradlew` from a Windows checkout has
+CRLF line endings; and **reuse the container** rather than creating a new one — it keeps the downloaded
+build JDK, so the second build of a session skips the ~5 min download:
+
+```bash
+tar -czf ../src.tgz …                       # re-tar after editing sources
+docker start teavm-build && sleep 240       # it re-runs its own command with the new tar
+docker cp teavm-build:/work/compiler/build/generated/teavm/wasm-gc-optimized/compiler.wasm ./
+```
 
 ### The verification ladder — use the cheapest rung that answers the question
 

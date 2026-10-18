@@ -229,35 +229,101 @@ rather than trap).
 
 ---
 
-## 7. Two shape-dependent codegen traps seen with `enum-map-set`
+## 7. Class names are emitted per class, so `getName` and `forName` miss dynamic classes
 
-Both look like the generator failing to emit a vtable slot or class metadata for *some* programs —
-they move with the program, not with the code, which is what makes them reportable as upstream bugs.
+> **Fixed for this package** by `patches/ClassMetadataRequirements.java` (see `patches/README.md`).
+> This section stays as the upstream report.
 
-**a. An inherited `TEnum.toString()` traps.** With `EnumMap` involved, a *virtual* call to the
-inherited `toString()` traps while the final `name()`/`ordinal()` on the same object work, and
-`getClass().getName()` returns `null`:
-
-```java
-enum Level { LOW, HIGH }
-Object k = m.keySet().iterator().next();     // m is an EnumMap<Level, …>
-System.out.println(((Level) k).name());      // LOW
-System.out.println(((Level) k).toString());  // RuntimeError: dereferencing a null pointer
-```
-
-Giving the enum its own `toString()` makes the same program work, and a near-identical program
-(`HashMap<Level, Integer>` printed with `+`) works too. `EnumMap.toString()` then traps inside the
-`StringBuilder` it builds text with (`AbstractStringBuilder.insert(int, char)` on a null `buffer`).
-
-**b. A stream lambda over `StackTraceElement[]` that uses `getMethodName()` traps.** The frames are
-real and their names are non-null (`map(StackTraceElement::getMethodName).findFirst().get()` returns
-the right value), but:
+`ClassMetadataRequirements` decides whether a class carries its name in the generated `ClassInfo` from
+the **statically known** `Class` values that the dependency analyzer can prove reach `Class.getName()`:
 
 ```java
-System.out.println(Arrays.stream(frames).anyMatch(f -> f.getMethodName().equals("main")));
-// RuntimeError: dereferencing a null pointer, inside the lambda
+addClassesRequiringName(requirements, getNameMethod.getVariable(0).getClassValueNode().getTypes());
 ```
 
-`anyMatch(f -> f.getMethodName() != null)` works; only *using* the returned `String` (`.equals(...)`)
-in a lambda traps. The same shape over a user class works. Both programs that need it
-(`exceptions-stacktrace`, `exception-propagation`) are otherwise correct.
+A class reached any other way — `Object.getClass()`, `Class.forName`, `getSuperclass`,
+`Array.newInstance`, a `Class` held in a field or collection — is not in that set, so its `name` field
+is never emitted and `getName()` answers **null**, where the JDK always answers the name:
+
+```java
+public class Main {
+  enum Level { LOW, HIGH }
+
+  public static void main(String[] args) throws Exception {
+    System.out.println(((Object) Level.LOW).getClass().getName());   // null   (JDK: Main$Level)
+  }
+}
+```
+
+Adding any line that mentions `Level.class` statically — `System.out.println(Level.class.getName());`
+— makes the first line print `Main$Level`, because that call site *is* a statically known `Class`
+value. The same table backs `TClass.forName`'s name→class map, so `Class.forName` cannot resolve a
+class whose name was left out at all: `Class.forName("java.lang.String")` works only if something else
+in the program already asked for `String`'s name (`reflection`'s last failing line was exactly this).
+
+Both are one fix — if `getName` or `forName` is reached anywhere, every class gets its name.
+
+---
+
+## 8. A class's vtable is sometimes never filled, and a virtual call on it traps
+
+The program traps with `RuntimeError: dereferencing a null pointer` on a virtual call to an inherited
+method. Minimal shape (an `EnumMap` because printing one calls `toString()` on its keys):
+
+```java
+import java.util.EnumMap;
+
+public class Main {
+  enum Level { LOW, HIGH }
+
+  public static void main(String[] args) {
+    EnumMap<Level, Integer> m = new EnumMap<>(Level.class);
+    m.put(Level.LOW, 1);
+    m.put(Level.HIGH, 2);
+    Object k = m.keySet().iterator().next();
+    System.out.println(((Level) k).name());       // LOW
+    System.out.println(((Level) k).toString());   // RuntimeError: dereferencing a null pointer
+  }
+}
+```
+
+`java.lang.AbstractStringBuilder::insert(int, Object)` is the frame that traps, and its generated code
+says exactly what it does:
+
+```wat
+(call_ref $14 (local.get $obj)
+  (struct.get $VT<java.lang.Object> $toString
+    (ref.cast (ref $VT<java.lang.Object>) (struct.get $java.lang.Object $vt (local.get $obj)))))
+```
+
+The function reference comes out of the object's own vt (`$4.$vt`, the global `$Main$Level@vt`), and
+that slot is **null**. The global is created as a `struct.new_default` and TeaVM fills it in the
+program initializer — `WasmGCClassGenerator.fillVirtualTableMethods` emits a call to the runtime
+`teavm@objectVirtualTable(vt, class)` plus a `struct.set` per slot the class itself provides — but only
+after
+
+```java
+var usedVt = virtualTable.getFirstUsed();
+if (usedVt == null) {
+    return;
+}
+```
+
+so a class whose table was never marked "used" gets no fill at all. `WasmGCVirtualTableBuilder` marks a
+table used only when a call site's **declaring** class is that class
+(`groupMethodsFromCallSites` groups by `methodRef.getClassName()`); a class that merely *inherits* the
+method that is called on it — an enum without its own `toString`, or any class relying on
+`Object.toString` — need not match. The call site does not care: `WasmGCVirtualCallGenerator` reads the
+slot from the vtable structure of the receiver's **static** type, which for that shape is the class
+whose table was skipped.
+
+That is why the bug is shape-dependent and moves with unrelated edits: a statically-typed use of the
+class elsewhere can mark its table used, and the same call then works. It is behind `enum-map-set`
+(`EnumMap` keys) and both `StackTraceElement` programs (where the receiver is a frame's `String`), and
+it is *not* the same thing as §7 — the `getClass().getName()` null that shows up in the same shapes
+had a separate cause and is fixed.
+
+Reproducing it needs nothing but a browser run; understanding it needed `wasm-dis` from the standalone
+Binaryen release (`binaryen-version_133/bin/wasm-dis.exe`), which reads TeaVM's output where the npm
+`binaryen` binding rejects it (`wasm-opt` fails on the same rec groups — `--emit` in
+`scripts/run-program.mjs` writes the module).

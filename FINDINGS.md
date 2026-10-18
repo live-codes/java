@@ -320,6 +320,43 @@ two classlib archives from `assets/`, checksum-verifying all five. `npm run buil
 Nothing rewrites a third-party binary at vendoring time: the archives are build outputs, reproducible
 from the pinned commit plus the patches, and the deobfuscator is a stock artifact of that commit.
 
+### Rebuilding the compiler (`compiler.wasm`) — proven, and reproducible
+
+This used to be "never possible in this environment". It works now: `patches/Dockerfile` pins JDK 25
+and Binaryen 133, and the whole build runs in a container. Measured on one machine with a cold Gradle
+cache: **8m53s** for `:compiler:optimizeWasmGC`, most of it `generateWasmGC` plus `wasm-opt -O4`.
+
+```bash
+cd /path/to/teavm-javac
+docker build -f patches/Dockerfile -t teavm-javac-build .
+docker run --rm -v "$PWD":/work -v teavm-gradle:/root/.gradle teavm-javac-build \
+    bash ./gradlew :compiler:optimizeWasmGC --console=plain --no-daemon
+```
+
+The three artifacts this package vendors come from:
+
+| File | Where |
+|---|---|
+| `compiler.wasm` | `compiler/build/generated/teavm/wasm-gc-optimized/compiler.wasm` |
+| `compiler.wasm-deobfuscator.wasm` | the same directory |
+| `compiler.wasm-runtime.js` | `compiler/build/generated/teavm/wasm-gc/compiler.wasm-runtime.js` (patched by `patchWasmGCRuntime`) |
+
+`:compiler:createDist` is **not** required — it additionally runs `generateJavaScript` and the npm
+wrapper (which needs Node). The three files above are the whole vendored surface.
+
+Two things were measured rather than assumed:
+
+- **The runtime glue is bit-for-bit reproducible.** The rebuilt `compiler.wasm-runtime.js` hashes to
+  exactly the pinned `4709a64b…`, although the build environment differs.
+- **The rebuilt compiler is functionally equivalent.** Its `compiler.wasm` differs byte-wise
+  (`4700c30b…`, 5.46 MB, versus the pinned `ea83c69d…` — a different `wasm-opt` version), but a full
+  corpus run with it gives **the same 137/145 and the same 8 failures**. The pinned artifact is kept:
+  do not swap it without re-running the corpus.
+
+**Build inside the container, not on a Windows bind mount.** Gradle's input hashing over Docker
+Desktop's 9p/virtiofs mount is pathologically slow — `du` over the clone takes minutes — so copy the
+*source* in (~38 MB) and build there; the extracted JDK (696 MB) is fetched by the build itself.
+
 ### Verifying a change, cheapest first
 
 ```bash
@@ -370,9 +407,10 @@ the regression count did not, and the numbers in §1 are updated.
 4. Run `sdk-check.mjs` (it encodes every SDK bug we have fixed, so it is the regression net), then
    `compile-program.mjs --all`, then the full corpus.
 5. **If the compiler itself must be rebuilt** (`compiler.wasm`, i.e. any change to codegen or to
-   TeVM internals): install Binaryen and run `:compiler:createDist`. This was never possible in this
-   environment, so that path is untested here — expect to re-verify the two workarounds in §2
-   (`SIMPLE` optimization, stdin wiring) after such a build.
+   TeVM internals): use the container recipe in §6 — it is proven, ~9 minutes, and it pins JDK 25 and
+   Binaryen. Re-verify the two workarounds in §2 (`SIMPLE` optimization, stdin wiring) on the new
+   build, then run the full corpus before swapping the artifact (the rebuilt module differs byte-wise
+   from the pinned one, so "it compiles" is not enough).
 
 ### Traps that will bite again
 

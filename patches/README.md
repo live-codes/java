@@ -88,6 +88,25 @@ and the archive format is untouched.
 
 ## Applying and building
 
+The build must run on **Linux, with JDK 25 and a pinned Binaryen** (`wasm-opt`), for three reasons:
+`ArchiveBuilder` used to emit `\` entry separators on Windows; `:compiler:createDist` needs `wasm-opt`;
+and `StdlibConverter` reads the *running* JDK's own class files (annotation elements, relaxed
+`default` methods), so the JDK version is part of the build's identity. **`patches/Dockerfile` pins all
+three**, which is the reproducible way to build here:
+
+```bash
+cd /path/to/teavm-javac          # the fork clone, at the pinned commit
+docker build -f patches/Dockerfile -t teavm-javac-build .
+docker run --rm -v "$PWD":/work -v teavm-gradle:/root/.gradle teavm-javac-build \
+    bash ./gradlew :compiler:createDist --console=plain --no-daemon
+```
+
+The `teavm-gradle` volume caches Gradle and the dependencies; without it every run re-downloads.
+Note that a Windows checkout of `gradlew` has CRLF line endings — strip them (`sed -i 's/\r$//'
+gradlew` on the host, or in an entrypoint) before running it inside a Linux container.
+
+Native builds work too, and are what this repo's archives were produced with:
+
 ```bash
 git clone https://github.com/Vsprocessing/teavm-javac
 cp StdlibConverter.java teavm-javac/compiler/src/main/java/org/teavm/javac/StdlibConverter.java

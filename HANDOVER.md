@@ -126,7 +126,8 @@ made by reading code. `FINDINGS.md` §9 records that history so it is not repeat
 | Compiler dist for local tools | `D:\DevWork\teavm-javac-build\dist\teavm-javac` |
 | JDK 25 | `C:\Program Files\Microsoft\jdk-25.0.4.101-hotspot` (`JAVA_HOME` is **not** set in shells) |
 | Node | 24 (`node:zlib`/`node:fs` used by the scripts; WasmGC works in Node) |
-| Binaryen (`wasm-opt`) | **not installed** — so `compiler.wasm` cannot be rebuilt here |
+| Binaryen (`wasm-opt`) | **installed** now: 133 at `D:\DevWork\tools\binaryen-version_133`; the reproducible path is the container below |
+| Docker | yes (28.2.2, linux/x64). Image `teavm-javac-build` (built from `patches/Dockerfile`) = JDK 25 + Binaryen 133; a named volume `teavm-gradle` caches Gradle and the dependencies |
 | Chrome | needed for `corpus/run.mjs` (CDP) |
 
 **The fork clone is modified and must stay that way** — these are the sources of the vendored
@@ -197,6 +198,24 @@ Current pins (all five in `scripts/fetch-teavm.mjs`): SDK
 `fcff0859ca4af0f5622ae901fa3a1d796c37efdbf4dbe872ebfea221700829b6` (plus the three compiler artifacts
 from the pinned commit).
 
+### Building the compiler (`compiler.wasm`) — container, ~9 min, proven
+
+Only needed if you change codegen or TeVM internals (`FINDINGS.md` §6 has the detail and the artifact
+paths). `patches/Dockerfile` pins JDK 25 + Binaryen 133:
+
+```bash
+cd /path/to/teavm-javac
+docker build -f patches/Dockerfile -t teavm-javac-build .
+docker run --rm -v "$PWD":/work -v teavm-gradle:/root/.gradle teavm-javac-build \
+    bash ./gradlew :compiler:optimizeWasmGC --console=plain --no-daemon
+```
+
+Measured: 8m53s cold. It reproduces `compiler.wasm-runtime.js` **bit-for-bit**, and the rebuilt
+`compiler.wasm` gives the same corpus result (137/145) — but it is **not byte-identical** to the pinned
+one (different `wasm-opt`), so run the corpus before swapping it. Two practical notes: build **inside**
+the container (a Windows bind mount makes Gradle's hashing pathologically slow — copy the ~38 MB source
+in), and `gradlew` from a Windows checkout has CRLF line endings, so strip them first.
+
 ### The verification ladder — use the cheapest rung that answers the question
 
 ```bash
@@ -231,23 +250,27 @@ To check *output* rather than "it ran", diff against JDK 25 running the same sou
 codegen (5), compiler-side (2), or deliberate (1). So the next move is a decision, and it is the user's
 to make. Do not start a long task without asking which branch.
 
-### A. Fix the codegen (needs Binaryen; nothing has been tried here yet)
+### A. Fix the codegen (needs a compiler rebuild — which is now proven to work)
 
-Every one of the 5 + 2 faults needs a `compiler.wasm` rebuild, and `wasm-opt` is not installed. The
-untested path is in `FINDINGS.md` §7.5; budget for re-verifying the two workarounds afterwards
-(`SIMPLE` optimization, stdin wiring). The faults, each with a measured diagnosis:
+**The compiler rebuild is no longer a blocker.** `patches/Dockerfile` pins JDK 25 + Binaryen 133 and
+builds `compiler.wasm` in ~9 minutes (measured: 8m53s cold). It reproduces `compiler.wasm-runtime.js`
+**bit-for-bit**, and the rebuilt `compiler.wasm` gives the same corpus result (137/145, same 8
+failures) — see `FINDINGS.md` §6. So each iteration is: patch, rebuild (~9 min), run
+`corpus/run.mjs teavm` (~3–8 min).
+
+The faults, each with a measured diagnosis:
 
 | Program(s) | Fault |
 |---|---|
-| `exceptions` | integer divide-by-zero does not raise `ArithmeticException` — the wasm `i32.div_s` traps |
+| `exceptions` | integer divide-by-zero: `BaseWasmGenerationVisitor` maps `DIVIDE` straight to `WasmIntBinaryOperation.DIV_SIGNED`, with no zero check — the wasm op traps instead of throwing `ArithmeticException`. Unlike bounds/class-cast checks there is **no existing check machinery to reuse**: `BoundCheckExpr` assumes the check passed, and the backend throws only via `WasmThrow`/`context.getExceptionTag()`. Fixing it means new IR or backend work (and `MODULO` too) |
 | `exceptions-finally` | `try { return x; } finally { return y; }` emits invalid wasm (`expected 1 elements on the stack for fallthru`) |
 | `exceptions-stacktrace`, `exception-propagation` | a stream lambda over `StackTraceElement[]` that calls `getMethodName()` and *uses* the result traps; the frames themselves are correct now |
 | `enum-map-set` | shape-dependent: an inherited `TEnum.toString()` vtable slot / class metadata is missing for that program (a near-identical program works; an enum that overrides `toString()` works) |
-| `reflection`, `reflection-members` | not codegen: **method** metadata is pruned. Adding a reflection dependency listener in `Compiler.java` is the fix, and it also needs the compiler rebuilt |
+| `reflection`, `reflection-members` | not codegen: **method** metadata is pruned. Adding a reflection dependency listener in `Compiler.java` is the fix — same rebuild |
 
-`Object.clone()` (§4b) is worth fixing first if the compiler gets rebuilt: it is worked around six
-vendored classes' worth, and a real fix lets most of them be deleted — which is the preferred ending
-for every vendored class (FINDINGS §7).
+`Object.clone()` (`FINDINGS.md` §4b) is worth fixing first: it is the reason
+`TDecimalFormatSymbols.clone()` is vendored, and a real fix would let that class be deleted — the
+preferred ending for every vendored class (§7 of `FINDINGS.md`).
 
 ### B. Wire LiveCodes (only when the user says the engine is ready)
 
@@ -325,6 +348,14 @@ Read this list before starting; each entry cost at least one wasted cycle.
     commit `assets/`, `vendor/teavm/` and `dist/teavm/` together, or the repo runs on a stale archive.
     `node scripts/build.mjs` refreshes `dist/` from `vendor/teavm/` offline; `npm run build` also
     re-downloads the pinned compiler artifacts.
+19. **Do not build in a Windows bind mount from Docker.** Docker Desktop's 9p/virtiofs mount is
+    pathologically slow for many-file operations — `du -sh` over the fork clone takes *minutes*, and
+    Gradle's up-to-date hashing crawls. Copy the ~38 MB source into the container and build there
+    (`FINDINGS.md` §6); the Gradle cache volume keeps repeat builds fast, and the extracted JDK (696 MB)
+    is fetched by the build.
+20. **A Windows checkout's `gradlew` has CRLF**, so `bash ./gradlew` fails inside a Linux container with
+    `set: invalid option`-style noise. Strip it (`sed -i 's/\r$//'`) or run `bash <(tr -d '\r' < gradlew)`
+    — but the latter loses `APP_HOME`, so strip it in place.
 
 ---
 

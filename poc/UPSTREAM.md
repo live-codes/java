@@ -14,9 +14,16 @@ ONLY=<program-id> node corpus/run.mjs teavm               # the same, in a brows
 ```
 
 `run-program.mjs` reports a wasm trap with **named Java frames** (`--trace`), which is what makes these
-reportable at all. The compiler itself can now be rebuilt and tested here — see
-`patches/Dockerfile` and `FINDINGS.md` §6 (JDK 25 + Binaryen 133, ~9 minutes) — so "it cannot be
-built" is no longer a reason to leave one of these unfixed.
+reportable at all. `--emit` writes the generated module, and then
+
+```bash
+binaryen-version_133/bin/wasm-dis.exe app.wasm -o app.wat
+```
+
+prints readable wat **with Java names** — the standalone Binaryen tools read TeaVM's output where the
+npm `binaryen` binding rejects it (`wasm-opt` fails on the same rec groups). The compiler itself can be
+rebuilt here — `patches/Dockerfile` and `FINDINGS.md` §6, ~5–9 minutes per rebuild — so "it cannot be
+built" is not a reason to leave one of these unfixed.
 
 ---
 
@@ -227,6 +234,10 @@ check already passed, and the backend throws only through `WasmThrow`/`context.g
 fix needs new IR or backend work (plus the `MIN_VALUE / -1` case, which must return `MIN_VALUE`
 rather than trap).
 
+> **Fixed for this package** by `patches/DivisionCheckTransformer.java` + `patches/Division.java`
+> (`patches/README.md`): a `ClassHolderTransformer` rewrites int/long `DIVIDE`/`MODULO` into calls to a
+> class-library helper that checks the divisor.
+
 ---
 
 ## 7. Class names are emitted per class, so `getName` and `forName` miss dynamic classes
@@ -265,10 +276,15 @@ Both are one fix — if `getName` or `forName` is reached anywhere, every class 
 
 ---
 
-## 8. A class's vtable is sometimes never filled, and a virtual call on it traps
+## 8. A vtable entry whose implementation was dropped, so a virtual call traps
 
-The program traps with `RuntimeError: dereferencing a null pointer` on a virtual call to an inherited
-method. Minimal shape (an `EnumMap` because printing one calls `toString()` on its keys):
+> **Partly fixed for this package**: `patches/WasmGCVirtualTableBuilder.java` plus the `Compiler.java`
+> change in `patches/README.md`. The `toString` cases pass; see the end of this section for the
+> instance that does not.
+
+A virtual call to a method whose implementation nothing else calls out of line traps with
+`RuntimeError: dereferencing a null pointer`. Minimal shape (an `EnumMap`, because printing one calls
+`toString()` on its keys):
 
 ```java
 import java.util.EnumMap;
@@ -288,7 +304,7 @@ public class Main {
 ```
 
 `java.lang.AbstractStringBuilder::insert(int, Object)` is the frame that traps, and its generated code
-says exactly what it does:
+says what it does:
 
 ```wat
 (call_ref $14 (local.get $obj)
@@ -296,34 +312,51 @@ says exactly what it does:
     (ref.cast (ref $VT<java.lang.Object>) (struct.get $java.lang.Object $vt (local.get $obj)))))
 ```
 
-The function reference comes out of the object's own vt (`$4.$vt`, the global `$Main$Level@vt`), and
-that slot is **null**. The global is created as a `struct.new_default` and TeaVM fills it in the
-program initializer — `WasmGCClassGenerator.fillVirtualTableMethods` emits a call to the runtime
-`teavm@objectVirtualTable(vt, class)` plus a `struct.set` per slot the class itself provides — but only
-after
+The function reference comes out of the object's own vt global (`$Main$Level@vt`), and that slot is
+**null**. The global is filled in the program initializer by
+`WasmGCClassGenerator.fillVirtualTableMethods`, which writes a slot only when the table has an
+**implementor** for it — and `WasmGCVirtualTableBuilder` records one only for a method that is
+*reachable*, i.e. has a program in the generated class source. `java.lang.Object.toString` and
+`java.lang.Enum.toString` both exist in the class library with real bodies, but nothing calls either
+out of line — call sites are devirtualised or replaced by `ObjectIntrinsic` — so the dependency
+analysis drops them, no implementor is recorded, no `struct.set` is emitted, and the call site reads
+a slot that was never written.
+
+`fillVirtualTableMethods` also gates on `virtualTable.getFirstUsed()`, and
+`WasmGCVirtualTableBuilder` marks a table "used" only when a call site's **declaring** class is that
+class (`groupMethodsFromCallSites` groups by `methodRef.getClassName()`), while
+`WasmGCVirtualCallGenerator` reads the slot from the receiver's **static** type. For an inherited
+method those are different classes, so the two halves disagree. That is why the failure is
+shape-dependent and moves with unrelated edits: a statically typed use of the class elsewhere can mark
+the table used, and the same call then works.
+
+**Fixed for the `toString` cases** by reaching those implementations explicitly, so the vtable has
+something to point at, and by not requiring `isVirtual` when recording implementors:
 
 ```java
-var usedVt = virtualTable.getFirstUsed();
-if (usedVt == null) {
-    return;
+// compiler/src/main/java/org/teavm/javac/Compiler.java, in linkWasmExceptionDecoration's started()
+agent.linkMethod(OBJECT_TO_STRING_METHOD).use();
+agent.linkMethod(ENUM_TO_STRING_METHOD).use();
+```
+
+```java
+// WasmGCVirtualTableBuilder.fillTable: the isVirtual filter on class implementors is removed
+if (!isVirtual.test(method.getReference()) && !method.getReference().equals(CLONE_METHOD)) {
+    continue;
 }
 ```
 
-so a class whose table was never marked "used" gets no fill at all. `WasmGCVirtualTableBuilder` marks a
-table used only when a call site's **declaring** class is that class
-(`groupMethodsFromCallSites` groups by `methodRef.getClassName()`); a class that merely *inherits* the
-method that is called on it — an enum without its own `toString`, or any class relying on
-`Object.toString` — need not match. The call site does not care: `WasmGCVirtualCallGenerator` reads the
-slot from the vtable structure of the receiver's **static** type, which for that shape is the class
-whose table was skipped.
+**Not fixed by that:** the same fault for a method this package does not name. `exceptions-stacktrace`
+and `exception-propagation` hit it with `java.lang.String.equals`, which is *final* and so is usually
+devirtualised — but not in a stream lambda, where the generated code calls it through
+`$VT<java.lang.String> $equals` and that slot is absent from the vt that is written:
 
-That is why the bug is shape-dependent and moves with unrelated edits: a statically-typed use of the
-class elsewhere can mark its table used, and the same call then works. It is behind `enum-map-set`
-(`EnumMap` keys) and both `StackTraceElement` programs (where the receiver is a frame's `String`), and
-it is *not* the same thing as §7 — the `getClass().getName()` null that shows up in the same shapes
-had a separate cause and is fixed.
+```java
+System.out.println(Arrays.stream(frames).anyMatch(x -> x.getMethodName().equals("main")));
+// RuntimeError: dereferencing a null pointer, in the lambda
+```
 
-Reproducing it needs nothing but a browser run; understanding it needed `wasm-dis` from the standalone
-Binaryen release (`binaryen-version_133/bin/wasm-dis.exe`), which reads TeaVM's output where the npm
-`binaryen` binding rejects it (`wasm-opt` fails on the same rec groups — `--emit` in
-`scripts/run-program.mjs` writes the module).
+The frame names themselves are fine (a loop printing every `getMethodName()` shows `main`, `runMain`, …,
+all non-null), so the trap is the slot, not the data. A general fix has to make the *most derived*
+implementation of every vtable entry reachable — not a fixed list of method names — which belongs in
+the dependency analysis or in the vtable builder, not in a patch that names two methods.

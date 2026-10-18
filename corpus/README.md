@@ -32,11 +32,11 @@ Raw results land in `corpus/results.json` (`results-only.json` for a filtered ru
 Programs must print deterministic output — sort maps and sets before printing, or the two engines
 differ for reasons that have nothing to do with correctness.
 
-## Result: 140/145 pass, and all **5 remaining failures are regressions**
+## Result: 141/145 pass, and all **4 remaining failures are regressions**
 
-java-wasm runs 140 of 145. That hides the number that matters for a switch: **all 5 failures work
+java-wasm runs 141 of 145. That hides the number that matters for a switch: **all 4 failures work
 today on the current engine** — there is no "broken on both engines" left. On this corpus that is a
-3.4% regression rate.
+2.8% regression rate.
 
 Recent closures. `stringformat`, `parse-format` and `string-format-more` were one bug: every
 `DecimalFormat` clones its `DecimalFormatSymbols`, and `Object.clone()` produces an object with no
@@ -46,12 +46,14 @@ initialised, `char-classes` needed `Character.UnicodeBlock` (absent from TeaVM e
 `instant-duration` needed `Duration.toXxxPart()` (which also took compilation to **145/145**),
 `reflection-members` needed the compiler's `ReflectionSupplier` to keep application-class *methods*,
 and `exceptions` needed integer division by zero to throw instead of trapping in wasm (a compiler
-`ClassHolderTransformer` plus a class-library helper), and `reflection` needed class names to be
-emitted for classes the analyzer cannot see statically (a core patch to `ClassMetadataRequirements`).
-`getStackTrace()` returns real frames now
+`ClassHolderTransformer` plus a class-library helper), `reflection` needed class names to be
+emitted for classes the analyzer cannot see statically (a core patch to `ClassMetadataRequirements`),
+and `enum-map-set` needed the vtable slot of an *inherited* method to have an implementation to point
+at (a core patch to the vtable builder, plus reaching `Object.toString`/`Enum.toString` in the
+compiler). `getStackTrace()` returns real frames now
 instead of TeaVM's `Throwable$FakeClass.fakeMethod` stand-in, which the two remaining exception
-programs need but do not yet pass — they still hit one code-generation fault: a vtable that was never
-filled, read through the receiver's static type (`FINDINGS.md` §4b, `poc/UPSTREAM.md` §8).
+programs need but do not yet pass — they hit the *general* form of that last vtable fault
+(`FINDINGS.md` §4b, `poc/UPSTREAM.md` §8).
 
 Eight of the bugs the corpus found were in the fork rather than in TeaVM itself, and are fixed by
 the patches in `patches/` (see `patches/README.md`): `list-deque-queue`
@@ -66,7 +68,7 @@ Timings for the whole set: init 0.3–2 s, javac 1–13 s, **wasm generation 51�
 The spread is run-to-run variance on one machine (load-dependent), not a spread across programs;
 generation dominates either way.
 
-### Regressions — work on Doppio, fail on java-wasm (16 found, 5 remain)
+### Regressions — work on Doppio, fail on java-wasm (16 found, 4 remain)
 
 | # | Programs | Failure | Cause |
 |---|---|---|---|
@@ -75,11 +77,11 @@ generation dominates either way.
 | 3 | ~~`exceptions`~~ — fixed | — | integer division by zero trapped in wasm instead of throwing `ArithmeticException`. `DivisionCheckTransformer` rewrites int/long `DIVIDE`/`MODULO` to a class-library helper that checks the divisor (and `MIN_VALUE / -1`); verified with a 52-case differential probe |
 | 4 | `exceptions-finally` | `expected 1 elements on the stack for fallthru` | `try { return } finally { return }` compiles to invalid wasm |
 | 5 | ~~`exceptions-suppressed`~~ — fixed | — | `Throwable.suppressed` is never initialised (TeaVM constructs through the `@Rename("<init>")` `init(…)` methods), so `addSuppressed` dereferenced null. `TThrowable` vendored with lazy accessors |
-| 6 | `exceptions-stacktrace`, `exception-propagation` | null pointer in a lambda over `StackTraceElement[]` | frames are **real** now (the worker enables the stack deobfuscator), but a stream lambda that calls `getMethodName()` and uses the result trips a code-generation fault — see `FINDINGS.md` §4b |
+| 6 | `exceptions-stacktrace`, `exception-propagation` | null pointer in a lambda over `StackTraceElement[]` | frames are **real** and their names non-null (the worker enables the stack deobfuscator), but `x.getMethodName().equals("main")` inside a stream lambda is dispatched through a vtable slot whose implementation was dropped — the general form of the `enum-map-set` fault above. See `FINDINGS.md` §4b |
 | 7 | ~~`char-classes`~~ — fixed | — | `Character.UnicodeBlock` (and `Character.Subset`) are absent from TeaVM's class library. `TCharacter` vendored, the nested types appended, and the block table generated from the JDK |
 | 8 | ~~`io-writers`~~ — fixed | — | `PrintWriter.printf("%n")` was `Unknown format conversion: n`; `%n` added to the class library's `TFormatter` |
 | 9 | ~~`recursive-generics`~~ — fixed | — | had crashed the compiler: the class library's `TSuppressWarnings` is a method-less stub shadowing the JDK's declaration, so javac had no `value` element to bind and threw a raw JS `TypeError`. Fixed by bug 6 of the SDK patch (`patches/README.md`); see `poc/UPSTREAM.md` |
-| 10 | `enum-map-set` | null pointer in `AbstractStringBuilder.insert` | codegen, and shape-dependent: the class's vtable was left all-null (TeaVM fills it only when a call site's *declaring* class matches, and this one only inherits `toString`) while the call site reads the slot from the receiver's static type. Disassembled in `FINDINGS.md` §4b / `poc/UPSTREAM.md` §8 — the same fault is behind the two `StackTraceElement` programs |
+| 10 | ~~`enum-map-set`~~ — fixed | — | a *virtual* call to an inherited method read a vtable slot that was never written: TeaVM records a slot's implementor only for a method that is *reachable*, and `Object.toString`/`Enum.toString` are never called out of line (call sites are devirtualised or intrinsified), so the analysis dropped them. Fixed by a core patch to the vtable builder plus reaching those two implementations in the compiler (`FINDINGS.md` §4b / `poc/UPSTREAM.md` §8). The *general* form of the fault is what the two `StackTraceElement` programs still hit |
 | 11 | ~~`interface-diamond`~~ — fixed | — | passes now (and in five repeat runs), printing `B/C`. The link to the SDK change is *not* established — the archive's bytes changed and TeaVM's generation is not visibly deterministic — so this is unexplained rather than a known fix |
 | 12 | `file-io` | `Directory does not exist` | no filesystem model (deliberately dropped) |
 
@@ -112,7 +114,7 @@ wrong: `interfaces` throws `NullPointerException` where java-wasm prints the rig
 
 ## Caveat
 
-145 hand-written programs still only sample the API, and they were written to probe gaps, so 3.4%
+145 hand-written programs still only sample the API, and they were written to probe gaps, so 2.8%
 is not a prediction of the real-world rate. It is measured rather than inferred — and the
-remaining regressions cluster in exception handling and reflection, which ordinary
+remaining regressions cluster in exception handling, which ordinary
 beginner-to-intermediate Java does use.

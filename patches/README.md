@@ -339,3 +339,64 @@ traps. That is a separate generator fault — `FINDINGS.md` §4b has the disasse
 §8 the report.
 
 This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above).
+
+## Core patch: the vtable builder (a dropped implementation has no slot to point at)
+
+Two pieces: `WasmGCVirtualTableBuilder.java` here, a replacement for TeaVM core's (shadowed through
+`compiler/src/patches/java`, and with its one `com.carrotsearch.hppc` map swapped for a `HashMap`
+because the compiler module has no hppc on its classpath), and a few lines in the fork's own
+`Compiler.java`.
+
+**The bug.** A virtual call to a method whose implementation nothing calls out of line traps with
+`RuntimeError: dereferencing a null pointer` — `enum-map-set` did it inside
+`AbstractStringBuilder.insert(int, Object)`, which calls `obj.toString()` on an `EnumMap` key:
+
+```wat
+(call_ref $14 (local.get $obj)
+  (struct.get $VT<java.lang.Object> $toString
+    (ref.cast (ref $VT<java.lang.Object>) (struct.get $java.lang.Object $vt (local.get $obj)))))
+```
+
+The slot comes out of the object's vt global, and that slot is **null**: the global is created as a
+`struct.new_default` and `WasmGCClassGenerator.fillVirtualTableMethods` writes a field only when the
+table has an *implementor* for it, which `WasmGCVirtualTableBuilder` records only for a method that is
+*reachable*. `java.lang.Object.toString` and `java.lang.Enum.toString` both exist in the class library
+with real bodies — `javap` on the SDK archive shows them — but nothing calls either **out of line**:
+call sites are devirtualised or replaced by `ObjectIntrinsic`, so the dependency analysis drops them,
+no `struct.set` is emitted, and the call site reads a slot that was never written. Worse, the builder
+marks a table "used" only when a call site's **declaring** class matches
+(`groupMethodsFromCallSites` groups by `methodRef.getClassName()`), while
+`WasmGCVirtualCallGenerator` reads the slot from the receiver's **static** type — different classes for
+an inherited method.
+
+**The fix, as implemented here.**
+
+```java
+// compiler/src/main/java/org/teavm/javac/Compiler.java, in linkWasmExceptionDecoration's started()
+agent.linkMethod(OBJECT_TO_STRING_METHOD).use();
+agent.linkMethod(ENUM_TO_STRING_METHOD).use();
+```
+
+```java
+// WasmGCVirtualTableBuilder.fillTable — remove this filter when recording class implementors
+if (!isVirtual.test(method.getReference()) && !method.getReference().equals(CLONE_METHOD)) {
+    continue;
+}
+```
+
+because `virtualMethods` is keyed by the method reference *as written at the call site* — which for an
+inherited method names the receiver's static type (`Main$Level.toString`), never the class that
+declares the implementation. (The same predicate still guards the *interface* path, where the reference
+does name the interface being implemented.)
+
+**Effect, measured.** `enum-map-set` matches JDK 25 byte for byte, and the enum probe prints `LOW`
+where it used to trap; the corpus goes 140/145 → **141/145** with nothing newly broken. The cost is
+that every overridable method of every class is recorded as an implementor — entries still come only
+from call sites and parents, so nothing extra is generated for a class that needs no slot.
+
+**Not fixed by this:** the same fault for a method this patch does not name. `exceptions-stacktrace`
+and `exception-propagation` reach it through `java.lang.String.equals` in a stream lambda. A general
+fix belongs in the dependency analysis, not in a list of method names — `FINDINGS.md` §4b and
+`poc/UPSTREAM.md` §8 have the detail.
+
+This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above).

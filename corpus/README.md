@@ -32,19 +32,21 @@ Raw results land in `corpus/results.json` (`results-only.json` for a filtered ru
 Programs must print deterministic output — sort maps and sets before printing, or the two engines
 differ for reasons that have nothing to do with correctness.
 
-## Result: 136/145 pass, but **8 of the 145 are regressions**
+## Result: 137/145 pass, and all **8 remaining failures are regressions**
 
-java-wasm runs 136 of 145. That headline hides the number that matters for a switch: **8 of those
-9 failures work today on the current engine.** On this corpus that is a 5.5% regression rate.
+java-wasm runs 137 of 145. That hides the number that matters for a switch: **all 8 failures work
+today on the current engine** — there is no "broken on both engines" left. On this corpus that is a
+5.5% regression rate.
 
-Three clusters closed most recently. `stringformat`, `parse-format` and `string-format-more` were one
+Four clusters closed most recently. `stringformat`, `parse-format` and `string-format-more` were one
 bug: every `DecimalFormat` clones its `DecimalFormatSymbols`, and `Object.clone()` produces an object
 with no vtable under this WasmGC backend, so the first virtual call on the copy trapped (see
-`FINDINGS.md` §4b); `io-writers` was a missing `%n` and `exceptions-suppressed` a `Throwable` field
-that is never initialised; `char-classes` needed `Character.UnicodeBlock`, which TeaVM does not have at
-all — its block table is generated from the JDK. `getStackTrace()` also returns real frames now instead
-of TeaVM's `Throwable$FakeClass.fakeMethod` stand-in, which the two remaining exception programs need
-but do not yet pass — they still hit a code-generation fault (`FINDINGS.md` §4b).
+`FINDINGS.md` §4b); `io-writers` was a missing `%n`, `exceptions-suppressed` a `Throwable` field that
+is never initialised, `char-classes` needed `Character.UnicodeBlock` (absent from TeaVM entirely), and
+`instant-duration` needed `Duration.toXxxPart()` — which also took compilation to **145/145**.
+`getStackTrace()` returns real frames now instead of TeaVM's `Throwable$FakeClass.fakeMethod` stand-in,
+which the two remaining exception programs need but do not yet pass — they still hit a code-generation
+fault (`FINDINGS.md` §4b).
 
 Eight of the bugs the corpus found were in the fork rather than in TeaVM itself, and are fixed by
 the patches in `patches/` (see `patches/README.md`): `list-deque-queue`
@@ -64,7 +66,7 @@ generation dominates either way.
 | # | Programs | Failure | Cause |
 |---|---|---|---|
 | 1 | ~~`stringformat`, `parse-format`, `string-format-more`~~ — fixed | — | every `DecimalFormat` clones its `DecimalFormatSymbols`; `Object.clone()` gives the copy no vtable under this WasmGC backend, so the first virtual call on it trapped. Worked around in the class library (§4b/§5 of `FINDINGS.md`) |
-| 2 | `reflection`, `reflection-members` | `NoSuchMethodException` | TeaVM reflection is a declared subset |
+| 2 | `reflection`, `reflection-members` | `NoSuchMethodException` from `getDeclaredMethod`/`getMethod` | class and field reflection work; **method** metadata is not generated, because members only reached through reflection are pruned before metadata generation and the fork never installs a reflection dependency listener. Compiler-side (`FINDINGS.md` §9) |
 | 3 | `exceptions` | wasm traps on integer divide-by-zero | no `ArithmeticException` |
 | 4 | `exceptions-finally` | `expected 1 elements on the stack for fallthru` | `try { return } finally { return }` compiles to invalid wasm |
 | 5 | ~~`exceptions-suppressed`~~ — fixed | — | `Throwable.suppressed` is never initialised (TeaVM constructs through the `@Rename("<init>")` `init(…)` methods), so `addSuppressed` dereferenced null. `TThrowable` vendored with lazy accessors |
@@ -72,34 +74,29 @@ generation dominates either way.
 | 7 | ~~`char-classes`~~ — fixed | — | `Character.UnicodeBlock` (and `Character.Subset`) are absent from TeaVM's class library. `TCharacter` vendored, the nested types appended, and the block table generated from the JDK |
 | 8 | ~~`io-writers`~~ — fixed | — | `PrintWriter.printf("%n")` was `Unknown format conversion: n`; `%n` added to the class library's `TFormatter` |
 | 9 | ~~`recursive-generics`~~ — fixed | — | had crashed the compiler: the class library's `TSuppressWarnings` is a method-less stub shadowing the JDK's declaration, so javac had no `value` element to bind and threw a raw JS `TypeError`. Fixed by bug 6 of the SDK patch (`patches/README.md`); see `poc/UPSTREAM.md` |
-| 10 | `enum-map-set` | null pointer in `AbstractStringBuilder.insert` | `EnumSet`/`EnumMap` path |
+| 10 | `enum-map-set` | null pointer in `AbstractStringBuilder.insert` | codegen, and shape-dependent: a near-identical program prints correctly, and giving the enum its own `toString()` makes the corpus shape work. An inherited-`toString` vtable slot / class metadata is not emitted correctly for this program. Needs Binaryen (`FINDINGS.md` §9) |
 | 11 | ~~`interface-diamond`~~ — fixed | — | passes now (and in five repeat runs), printing `B/C`. The link to the SDK change is *not* established — the archive's bytes changed and TeaVM's generation is not visibly deterministic — so this is unexplained rather than a known fix |
 | 12 | `file-io` | `Directory does not exist` | no filesystem model (deliberately dropped) |
 
 Every failure above was triaged at compile time, without a browser: `scripts/compile-program.mjs --all`
-compiles all 145 programs with the fork's javac in Node and reports **144 compile, 1 does not** — the
-one is `instant-duration`, a `cannot find symbol` for a missing class-library API. Every other failure
-is TeaVM-side — runtime behaviour (null pointers, unimplemented methods, the divide-by-zero trap), code
-generation (`exceptions-finally` emits invalid wasm), or the class library — and none is an
-SDK-surface bug of the kind `patches/StdlibConverter.java` fixes. Minimal reproductions, root causes
-and the code to change for each of these are written up in `poc/UPSTREAM.md`.
+compiles all 145 programs with the fork's javac in Node and reports **145 compile, 0 do not**. So every
+remaining failure is past javac — runtime behaviour (null pointers, mis-dispatched methods, the
+divide-by-zero trap), code generation (`exceptions-finally` emits invalid wasm), a deliberately dropped
+feature (`file-io`), or a class-library subset — and none is an SDK-surface bug of the kind
+`patches/StdlibConverter.java` fixes. Minimal reproductions, root causes and the code to change for
+each of these are written up in `poc/UPSTREAM.md`.
 
-### Fails on both engines (1)
+### Fails on both engines (0)
 
-| Program | Why java-wasm fails | Why Doppio fails |
-|---|---|---|
-| `instant-duration` | `Duration.toSecondsPart()` absent | JDK 8 has no such method |
+None any more. `instant-duration` was the last: it needed `Duration.toXxxPart()`, and `java.time` here
+is the bundled **ThreeTen backport** (`org.threeten.bp.*`, mapped to `java/time/` by the converter),
+which predates Java 9 — so the whole accessor family was missing from the API and the SDK. The threeten
+class is vendored with the six accessors (`FINDINGS.md` §5).
 
-These are missing APIs in TeaVM's class library, not converter omissions — checked by extracting the
-converter's input jar (`teavm-classlib-0.14.1.jar`): `java.time` is absent from it entirely.
-`String.lines()`, `Matcher.results()` and `Character.UnicodeBlock` were in the same position until they
-were added to the class library (see `FINDINGS.md` §5). The converter only renames what is there; it
-cannot invent an implementation.
-
-`streams-collectors` was a fifth entry here and was **a bug in this corpus, not in either engine**:
-the untyped `println(stream.collect(Collectors.toMap(k, v, merge, TreeMap::new)))` has no target type
-for `M` to be inferred from, and JDK 25's own javac rejects it with the same message java-wasm gave.
-The line now assigns to a `Map<Integer, String>` first, and the program passes.
+`streams-collectors` was once another entry in this section and was **a bug in this corpus, not in
+either engine**: the untyped `println(stream.collect(Collectors.toMap(k, v, merge, TreeMap::new)))` has
+no target type for `M` to be inferred from, and JDK 25's own javac rejects it with the same message
+java-wasm gave. The line now assigns to a `Map<Integer, String>` first, and the program passes.
 
 ## Where java-wasm wins
 

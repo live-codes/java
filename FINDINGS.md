@@ -26,16 +26,20 @@ Measured on `corpus/` (145 programs, run in Chrome):
 
 | | |
 |---|---|
-| Pass | **136 / 145** |
-| Compile | **144 / 145** |
+| Pass | **137 / 145** |
+| Compile | **145 / 145** |
 | "Works on Doppio, fails here" (regressions) | **8** |
-| "Fails on both engines" | **1** (`instant-duration`) |
+| "Fails on both engines" | **0** |
 
-Measured on a full run, and every class-library addition below (`String.lines()`, `Matcher.results()`,
-the `%e`/`%E` and `%n` format conversions, the `DecimalFormatSymbols` clone, the `suppressed` field,
-`Character.UnicodeBlock`) is separately confirmed by running the affected programs and diffing the
-output against JDK 25 — `regex-groups`, `var-textblock`, `text-block-more`, `stringformat`,
-`parse-format`, `string-format-more`, `io-writers`, `exceptions-suppressed` and `char-classes` all pass.
+Measured on a full run. Every program now compiles, and **every remaining failure is a regression** —
+there is no "broken on both engines" left to hide behind.
+
+Every class-library addition below (`String.lines()`, `Matcher.results()`, the `%e`/`%E` and `%n` format
+conversions, the `DecimalFormatSymbols` clone, the `suppressed` field, `Character.UnicodeBlock`,
+`Duration.toXxxPart()`) is separately confirmed by running the affected programs and diffing the output
+against JDK 25 — `regex-groups`, `var-textblock`, `text-block-more`, `stringformat`, `parse-format`,
+`string-format-more`, `io-writers`, `exceptions-suppressed`, `char-classes` and `instant-duration` all
+pass.
 
 The headline is the regression count, not the pass count: 8 of the 145 work today on the current
 engine and do not work here. That is the number that decides whether this can replace Doppio, and it
@@ -77,6 +81,13 @@ The two archives look similar and are not interchangeable:
 A gap therefore has to be closed on **both** sides: a declaration in the SDK for javac to resolve,
 and an implementation in the runtime archive. Half a fix is worse than none — it converts a clean
 compile-time error into a runtime failure.
+
+**`java.time` is a special case worth knowing about.** It is not TeaVM T-classes: it is the bundled
+**ThreeTen backport**, `org.threeten.bp.**`, and `StdlibConverter` maps that package to `java/time/`
+for the SDK (`StdlibConverter` line ~417). So `java.time` is real at runtime — `LocalDate`,
+`DateTimeFormatter`, `Duration`, `Instant` all work — but it is ThreeTen's API level, which predates
+the Java 9 additions (`Duration.toXxxPart()`, …). Fixing a gap there means vendoring the threeten
+class, and the archive and SDK both pick the patched copy up (§5).
 
 ### Worker protocol
 
@@ -198,7 +209,7 @@ nevertheless **worked around** for the classes that matter, in the class library
 | ~~`%e`/`%E` conversions~~ — **added here** | the second half of `stringformat`; `TFormatter` produced `Unknown format conversion: e` |
 | ~~`%n` conversion~~ — **added here** | `stringformat`, `io-writers`; `Unknown format conversion: n` |
 | ~~`Character.UnicodeBlock`~~ — **added here** | `char-classes`; neither `UnicodeBlock` nor `Character.Subset` exists in TeaVM 0.14.1. `TCharacter` vendored and the nested types appended; the block table is generated from the JDK (§5) |
-| `java.time` entirely (`TInstant`/`TDuration` absent) | `instant-duration` |
+| ~~`java.time` missing its Java 9+ additions~~ — **fixed here** | `instant-duration`. `java.time` is *not* absent: it is implemented by the bundled **ThreeTen backport** (`org.threeten.bp.*`, in the runtime archive) and `StdlibConverter` maps `org/threeten/bp/` → `java/time/` for the SDK. ThreeTen predates Java 9, so `Duration.toXxxPart()` was missing from the API entirely; `org/threeten/bp/Duration` vendored with the six accessors |
 | ~~`Throwable.suppressed` null~~ — **fixed here** | `exceptions-suppressed`. The field initializer never runs (TeaVM constructs through the `@Rename("<init>")` `init(…)` methods, not the real constructor), so `addSuppressed`/`getSuppressed` dereferenced null. `TThrowable` vendored with lazy accessors |
 | ~~`getStackTrace()` fake/incomplete frames~~ — **fixed here** | `exceptions-stacktrace`, `exception-propagation` get *real* frames now (class and method names), because the worker enables the stack deobfuscator and ships `compiler.wasm-deobfuscator.wasm`. Both programs still fail on the codegen fault in §4b, which is now the only thing left |
 | `EnumSet`/`EnumMap` null pointer in `AbstractStringBuilder.insert` | `enum-map-set` |
@@ -244,6 +255,7 @@ Three files, all drop-in replacements in the fork, plus a set of vendored class-
    | `java/util/TFormatter` | `%e`/`%E` conversions added (exponent pattern + an explicit exponent sign), and `%n` added |
    | `java/lang/TThrowable` | `getSuppressed`/`addSuppressed` tolerate the null `suppressed` field TeaVM's construction path leaves behind |
    | `java/lang/TCharacter` | `Character.Subset` and `Character.UnicodeBlock` appended — neither exists upstream. The 339 block constants and their ranges are **generated from the JDK** by `scripts/gen-unicode-blocks.java`, so `of()` agrees with the JDK exactly (including code points in no block, and the surrogate ranges) |
+   | `org/threeten/bp/Duration` | the six Java 9 `toXxxPart()` accessors added — this is the package `java.time` is converted from, so they were missing from the Java API entirely (§2) |
 
    `TCharacter` is the one vendored class with substantial *new API* rather than a fix, and its data is
    the JDK's, not hand-typed: run `java scripts/gen-unicode-blocks.java` and paste the output between
@@ -351,7 +363,9 @@ the regression count did not, and the numbers in §1 are updated.
      added method, rather than copying the old file forward. `TCharacter` is the awkward one: take the
      new upstream file, then re-append the nested `Subset`/`UnicodeBlock` types, re-running
      `scripts/gen-unicode-blocks.java` so the block table matches the new JDK build (the JDK's table is
-     the authority, not TeaVM's).
+     the authority, not TeaVM's). `org/threeten/bp/Duration` is the simple case: diff it and re-add the
+     six `toXxxPart()` accessors — or **delete the vendored copy entirely** if the new ThreeTen carries
+     them, which is the preferred ending for any of these.
 3. Rebuild both archives, re-vendor, update checksums.
 4. Run `sdk-check.mjs` (it encodes every SDK bug we have fixed, so it is the regression net), then
    `compile-program.mjs --all`, then the full corpus.
@@ -435,9 +449,8 @@ wasm, both codegen.
 
 | Item | What it takes |
 |---|---|
-| `EnumSet`/`EnumMap` (`enum-map-set`) | reduced, not fixed. `HashMap.toString()` is fine, but `EnumMap.toString()` (both `TAbstractMap.toString`) and `EnumSet.toString()`/`Map.keySet().toString()` (both `TAbstractCollection.toString`) trap in the `StringBuilder.append → insert` they use internally — the trap is in `AbstractStringBuilder.insert(int, char)`, i.e. a null `buffer`. Appending an enum to a `StringBuilder` from *user* code works, so it is the classlib-code context or another mis-compiled method copy (the trap names `insert_0`, `insert_4`, `append(204)` — TeaVM's copies), and not the enum. This one is **not** obviously the clone bug: the same `StringBuilder.append(Object)` trap pattern shows up in `exception-propagation` too |
-| `instant-duration` | nothing to vendor: `java.time` is absent. A **scoping decision** (how much of the package to promise) before it is a technical task. It is the last **compile-level** gap, so `compile-program.mjs --all` says 145/145 once it is done |
-| `reflection`, `reflection-members` | TeaVM's reflection is a declared subset; decide whether to widen it or document the subset |
+| `EnumSet`/`EnumMap` (`enum-map-set`) | reduced to a **codegen** fault, not fixable in the class library. The trap is `AbstractStringBuilder.insert(int, char)` on a null `buffer`, reached from the `StringBuilder` that `AbstractMap.toString`/`AbstractCollection.toString` build — TeaVM's method *copies* (`insert_0`, `insert_4`, `append(204)`). It is shape-dependent, which is the tell: a near-identical program (`HashMap<Level,Integer>` printed with `+`, and an `EnumMap` printed in isolation) produces correct output, and giving the enum its **own** `toString()` makes the exact corpus shape work. Without that override, a *virtual* call to the inherited `TEnum.toString()` traps while the final `name()`/`ordinal()` on the same object work, and `getClass().getName()` on it returns null. Same family as the `Object.clone()` bug in §4b: a vtable slot / class metadata that the generator did not emit correctly for that program. **Needs Binaryen and a codegen fix** |
+| `reflection`, `reflection-members` | reduced: **class and field** reflection work (`getName`, `getSimpleName`, `getDeclaredFields`, `getField`, `Field.getInt`/`setInt`), and both programs die cleanly on `getDeclaredMethod`/`getMethod` with `NoSuchMethodException`. Field metadata is generated but method metadata is not, and the fork's `Compiler.java` never installs a reflection dependency listener, so members that are only reached through reflection are pruned before metadata generation. **Compiler-side**: adding the listener means rebuilding `compiler.wasm` (Binaryen), or wiring a TeaVM option that preserves them |
 | `exceptions-finally`, `exceptions`, and the two `StackTraceElement` programs | codegen: needs Binaryen + a `compiler.wasm` rebuild, or an upstream TeaVM fix |
 
 The two remaining runtime faults are bugs rather than absences, so they need reducing before they can
@@ -447,8 +460,9 @@ read only the class that frame names.
 ### Closed this session (for the record)
 
 The float cluster (`stringformat`, `parse-format`, `string-format-more` — one `Object.clone()` bug,
-§4b/§5), `io-writers` (`%n`), `exceptions-suppressed` (`Throwable.suppressed`), and `char-classes`
-(`Character.UnicodeBlock`, generated from the JDK). Each was verified by diffing the program's output
+§4b/§5), `io-writers` (`%n`), `exceptions-suppressed` (`Throwable.suppressed`), `char-classes`
+(`Character.UnicodeBlock`, generated from the JDK), and `instant-duration` (`Duration.toXxxPart()`,
+which also took the compile count to **145/145**). Each was verified by diffing the program's output
 against JDK 25, not just by the corpus going green.
 
 ### Beyond the class library

@@ -163,6 +163,7 @@ says `Fork addition:`, against the day a TeaVM bump means re-syncing it against 
 | `java/util/TFormatter` | `%e`/`%E` and `%n` conversions added |
 | `java/lang/TThrowable` | `getSuppressed`/`addSuppressed` tolerate a null `suppressed` field |
 | `java/lang/TCharacter` | `Character.Subset` and `Character.UnicodeBlock` added — neither type exists upstream |
+| `org/threeten/bp/Duration` | the six Java 9 `toXxxPart()` accessors added |
 
 `TCharacter` is the largest of these, and the only one where a substantial part is **new API** rather
 than a fix. `Character.UnicodeBlock` is entirely absent from TeaVM 0.14.1, so any program touching it
@@ -184,6 +185,14 @@ To regenerate: paste the new `blocks.txt` between the `generated` markers in the
 `TCharacter.java`, or re-run the compose step (`scripts/gen-unicode-blocks.java`'s header explains the
 markers). Re-syncing `TCharacter` against a new TeaVM sources jar means the same: take the new
 upstream file, then re-append the nested types.
+
+`org/threeten/bp/Duration` is worth a note because the package name is surprising: **`java.time` in this
+engine is the bundled ThreeTen backport**, and `StdlibConverter` maps `org/threeten/bp/` to `java/time/`
+when it builds the SDK (line ~417 of the converter). ThreeTen predates Java 9, so the `Duration`
+accessor family added in Java 9 (`toDaysPart`, `toHoursPart`, `toMinutesPart`, `toSecondsPart`,
+`toMillisPart`, `toNanosPart`) was missing from `java.time.Duration` entirely. The vendored copy adds
+all six with the JDK's semantics — including negative durations, where `toSecondsPart()` of `-90s` is
+`-30` — and both the SDK and the runtime archive pick it up.
 
 `TThrowable`'s `suppressed` field is declared `= new TThrowable[0]`, but the initializer never runs:
 TeaVM renames the real constructor to `fakeInit` and constructs through the `@Rename("<init>")`

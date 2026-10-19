@@ -479,6 +479,50 @@ unrelated edits.
 
 This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above).
 
+## File I/O, continued: persistence and the platform switch
+
+Two more pieces on top of the in-memory filesystem above. Both are class-library changes plus a little
+host code, so they need only the two archives rebuilt (~30 s).
+
+### Persistence across runs
+
+The filesystem lives inside the wasm instance, so a run starts empty. Now the module hands a snapshot to
+the host at the end of a run and asks for it back on first use:
+
+* `InMemoryVirtualFileSystem` serialises its tree when the host calls the exported
+  `teavm_fs_snapshot()`: a small length-prefixed format, `D`/`F` records, one byte per character.
+  It restores from `teavmFile.loadFileSystem()` **lazily, on the first `getFile`**, not in the
+  constructor — the filesystem is created from `DefaultFileSystem`'s static initializer, which runs
+  before charsets exist, and encoding there traps.
+* The bytes are mapped to characters by hand rather than through `StandardCharsets.ISO_8859_1` for the
+  same reason: `Charset.encode` is not usable that early (`getBytes` dereferenced null).
+* Hosts expose `loadFileSystem`/`saveFileSystem` on `teavmFile`, and must also assign
+  `globalThis.teavmFile`: the module imports the object, but the class library's `@JSBody` helpers
+  read the global, so without it saving silently did nothing.
+* The browser worker keeps it in `localStorage` (`livecodes.java.files`); `createRuntime({ persistFiles: false })`
+  turns it off, which is what the corpus does so programs cannot see each other's files. The node runner
+  uses `TEAVM_FS_FILE=<path>` for the same purpose.
+* `VirtualFileImpl` is vendored so its path walk accepts `\` as a separator as well as `/`.
+
+Verified by running the same program three times with `TEAVM_FS_FILE`: the first prints `written`, the
+next two print `found: survives`.
+
+### The platform switch — and its limit
+
+`InMemoryVirtualFileSystem.isWindows()` now reads `globalThis.__teavmWindowsPaths`, which the hosts set
+before the module starts. **The default is POSIX**, which is what the browser is and what Doppio was; the
+corpus depends on it. `createRuntime({ platform: 'windows' })` or `TEAVM_PLATFORM=windows` switches
+`java.io.File` to Windows semantics — separators, `getParent()`, and `isAbsolute()` (so `/tmp` is
+*not* absolute, as the JDK on Windows says).
+
+It is **partial**: the `java.nio.file` layer builds its own paths and does not go through
+`File.fixSlashes`, so directory creation through `Files` still resolves POSIX paths. Use the switch
+only when a program depends on `File`'s Windows behaviour, and prefer fixing the program otherwise.
+
+The comparison side is fixed properly: `run-program.mjs --jdk` normalises `\` to `/` on both
+outputs, so the separator difference no longer shows up as a difference — only a genuine semantic one
+would.
+
 ## Core patch: `BaseWasmGenerationVisitor` (a dead sibling return)
 
 `BaseWasmGenerationVisitor.java` here is a replacement for

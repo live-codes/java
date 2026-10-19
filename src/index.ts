@@ -51,6 +51,14 @@ export interface CreateJavaRuntimeOptions {
   teavmBaseUrl?: string;
   /** Called with coarse engine progress. */
   onProgress?: (progress: JavaProgress) => void;
+  /** Keep the program's in-memory file system between runs (localStorage). Default: true. */
+  persistFiles?: boolean;
+  /**
+   * Path semantics the module models. 'posix' (default) behaves like the browser and like Doppio did.
+   * 'windows' changes java.io.File's separators and isAbsolute() answers; note the nio layer still
+   * resolves POSIX paths, so use it only when a program relies on File's Windows behaviour.
+   */
+  platform?: 'posix' | 'windows';
 }
 
 // Captured while the <script> tag is still evaluating (currentScript is null later).
@@ -129,6 +137,7 @@ export async function createRuntime(options: CreateJavaRuntimeOptions = {}): Pro
   worker.postMessage({
     cmd: 'init',
     baseUrl: options.teavmBaseUrl ? resolveBase(options.teavmBaseUrl) : new URL('teavm/', base).href,
+    persistFiles: options.persistFiles !== false,
   });
   await initialized;
 
@@ -141,6 +150,7 @@ export async function createRuntime(options: CreateJavaRuntimeOptions = {}): Pro
           source,
           input: runOptions.input ?? '',
           mainClass: runOptions.mainClass,
+          platform: options.platform ?? 'posix',
         });
       });
     },

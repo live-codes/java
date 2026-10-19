@@ -124,6 +124,23 @@ const fileOperationBytes = new Map();
 const memoryFiles = new Map();
 let fileOperationNextId = 0;
 
+// Persistence: TEAVM_FS_FILE points at a JSON file holding the module's file-system snapshot. Without
+// it a run starts with an empty file system and nothing is written, which is what the corpus wants.
+const persistPath = process.env.TEAVM_FS_FILE ?? null;
+let persistedFileSystem = null;
+if (persistPath) {
+  try {
+    persistedFileSystem = JSON.parse(readFileSync(persistPath, 'utf8')).snapshot ?? null;
+  } catch {
+    persistedFileSystem = null;
+  }
+}
+
+// The engine models a POSIX file system, like the browser does and like Doppio did. TEAVM_PLATFORM=windows
+// asks for Windows path semantics instead (File.isAbsolute, separators); it is opt-in because the nio
+// layer still resolves POSIX paths, so it is only faithful for the java.io.File API.
+globalThis.__teavmWindowsPaths = process.env.TEAVM_PLATFORM === 'windows';
+
 const bytesOf = (value) => {
   if (value == null) return new Uint8Array(0);
   if (value instanceof Uint8Array) return value;
@@ -213,11 +230,24 @@ function installFileImports(imports) {
     return storeOperationBytes(statusOk());
   };
 
+  api.loadFileSystem = () => persistedFileSystem;
+  api.saveFileSystem = (snapshot) => {
+    persistedFileSystem = snapshot;
+    if (persistPath) {
+      try {
+        writeFileSync(persistPath, JSON.stringify({ snapshot }), 'utf8');
+      } catch {
+        // a run that cannot persist should not fail because of it
+      }
+    }
+  };
+
   const assetNotSupported = (requestId) => complete(requestId, storeOperationBytes(fileErrorResult(new Error('assets are not supported'))));
   api.loadImageAsyncStart = assetNotSupported;
   api.loadFontAsyncStart = assetNotSupported;
 
   imports.teavmFile = api;
+  globalThis.teavmFile = api;
 }
 
 const stdin = encoder.encode(flags.input ?? '');
@@ -280,6 +310,17 @@ try {
 }
 const runMs = performance.now() - t0;
 
+// Ask the module to hand its file system to the host, which keeps it when TEAVM_FS_FILE is set. The
+// export comes from the class library and is absent when a program never touches java.io.
+const snapshotExport = app.instance?.exports?.['teavm_fs_snapshot'] ?? app.exports?.['teavm_fs_snapshot'];
+if (typeof snapshotExport === 'function') {
+  try {
+    snapshotExport();
+  } catch {
+    // a program that trapped mid-write keeps whatever was persisted before it
+  }
+}
+
 let jdkOut = null;
 if (flags.jdk) {
   const javaHome = process.env.JAVA_HOME;
@@ -312,7 +353,7 @@ if (stderr) console.log(`--- stderr ---\n${stderr}`);
 if (trap) console.log(`--- error ---\n${trap}`);
 if (jdkOut != null) {
   console.log(`--- jdk ---\n${jdkOut}`);
-  const normalise = (text) => text.replace(/\r\n/g, '\n');
+  const normalise = (text) => text.replace(/\r\n/g, '\n').replace(/\\/g, '/');
   console.log(normalise(stdout) === normalise(jdkOut) ? 'MATCH' : 'DIFFERS');
 }
 

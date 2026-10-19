@@ -252,8 +252,11 @@ usable (§5): pre-create `/tmp` in the virtual filesystem (so `createTempFile` w
 `Reader.transferTo` (so `Files.readString`/`writeString`/`copy` even *compile*), and make
 `Files.createDirectories` idempotent for a one-component path. The result is that create, write,
 append, read, rename, copy, list, delete and the `java.io` streams all match the JDK, and the
-filesystem is **per run** — it lives inside the module, so nothing persists to the next run. Details and
-the exact probe are in `patches/README.md`.
+filesystem lives inside the module, and it is now **persisted**: the module hands a snapshot to the host
+at the end of a run and asks for it back on first use, so a program's files survive to the next run
+(`localStorage` in the browser, `TEAVM_FS_FILE` for the runner). The path semantics also have a switch
+— POSIX by default, Windows for `java.io.File` on request — though the nio layer stays POSIX, so that
+switch is partial. Details and the exact probes are in `patches/README.md`.
 
 | Missing / broken | Programs |
 |---|---|
@@ -347,6 +350,8 @@ class-library classes.
    | `org/teavm/runtime/fs/memory/InMemoryVirtualFileSystem` | one line in the constructor creates `/tmp`, because `createTempFile` starts in `java.io.tmpdir` and the virtual filesystem starts empty — without it every temp-file program failed with "Directory does not exist" |
    | `java/io/TReader` | the Java 10 `transferTo(Writer)` added. TeaVM's own `TFiles.readString`/`writeString`/`copy` call it, so without it those three did not compile against the SDK |
    | `java/nio/file/TFiles` | `createDirectories` swallows `FileAlreadyExistsException` for a one-component path, as the JDK does — `Files.createDirectories(existingDir)` threw instead of being a no-op |
+   | `org/teavm/runtime/fs/memory/VirtualFileImpl` | its path walk accepts `\\` as a separator as well as `/`, so Windows-style paths resolve |
+   | `org/teavm/runtime/fs/memory/InMemoryVirtualFileSystem` | also carries the persistence snapshot/restore and reads the platform flag (see above) |
 
    `TCharacter` is the one vendored class with substantial *new API* rather than a fix, and its data is
    the JDK's, not hand-typed: run `java scripts/gen-unicode-blocks.java` and paste the output between

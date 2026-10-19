@@ -108,6 +108,13 @@ const FILE_OPERATION_BYTES = new Map<number, Int8Array>();
 const MEMORY_FILES = new Map<string, Uint8Array>();
 let fileOperationNextId = 0;
 
+/**
+ * Persistence storage for the module's file system. The engine keeps its files inside the wasm
+ * instance, so between runs the host hands the previous snapshot back and keeps the latest one.
+ */
+const FILE_STORAGE_KEY = 'livecodes.java.files';
+let persistFiles = true;
+
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
@@ -163,6 +170,23 @@ function completeFileOpen(requestId: number, resultId: number): void {
 
 function installFileImports(imports: Record<string, unknown>): void {
   const api: Record<string, unknown> = {};
+
+  api.loadFileSystem = () => {
+    if (!persistFiles) return null;
+    try {
+      return localStorage.getItem(FILE_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  };
+  api.saveFileSystem = (snapshot: unknown) => {
+    if (!persistFiles) return;
+    try {
+      if (typeof snapshot === 'string') localStorage.setItem(FILE_STORAGE_KEY, snapshot);
+    } catch {
+      // quota or a blocked storage area: persistence is best effort, not a reason to fail the run
+    }
+  };
 
   api.setActiveProgram = (program: unknown) => {
     (globalThis as Record<string, unknown>).__teavmActiveProgram = program;
@@ -232,6 +256,7 @@ function installFileImports(imports: Record<string, unknown>): void {
   api.loadFontAsyncStart = (requestId: number) => assetNotSupported(requestId);
 
   imports.teavmFile = api;
+  (globalThis as Record<string, unknown>).teavmFile = api;
 }
 
 /**
@@ -242,7 +267,10 @@ function installFileImports(imports: Record<string, unknown>): void {
  * completion flag — so we wait on the callback *and* the flag. stdin is a
  * pre-supplied string read one byte at a time through `teavmConsole.readStdin`.
  */
-async function executeProgram(wasm: Int8Array, input: string) {
+async function executeProgram(wasm: Int8Array, input: string, platform: 'posix' | 'windows' = 'posix') {
+  // The engine models a POSIX file system; a program that asks for Windows semantics gets the same
+  // separators and the same `File.isAbsolute()` answers the JDK on Windows would give.
+  (globalThis as Record<string, unknown>).__teavmWindowsPaths = platform === 'windows';
   const stdin = new TextEncoder().encode(input ?? '');
   let stdinIndex = 0;
   let stdout = '';
@@ -305,6 +333,17 @@ async function executeProgram(wasm: Int8Array, input: string) {
     runError = String((err as Error)?.message || err);
   }
 
+  // Hand the file system to the host, which keeps it for the next run when persistence is enabled.
+  // The export comes from the class library and is absent when a program never touches java.io.
+  const snapshotExport = app.instance.exports['teavm_fs_snapshot'];
+  if (typeof snapshotExport === 'function') {
+    try {
+      (snapshotExport as () => void)();
+    } catch {
+      // a program that trapped mid-write keeps whatever was persisted before it
+    }
+  }
+
   return {
     stdout,
     stderr: runError == null ? stderr : `${stderr}${stderr ? '\n' : ''}${runError}`,
@@ -325,7 +364,7 @@ function formatDiagnostics(): string {
     .join('\n');
 }
 
-async function run(source: string, mainClass: string, input: string) {
+async function run(source: string, mainClass: string, input: string, platform: 'posix' | 'windows' = 'posix') {
   const c = compiler!;
   const t0 = performance.now();
   c.clearSourceFiles();
@@ -369,7 +408,7 @@ async function run(source: string, mainClass: string, input: string) {
     };
   }
 
-  const { stdout, stderr, runMs, error } = await executeProgram(bytes, input);
+  const { stdout, stderr, runMs, error } = await executeProgram(bytes, input, platform);
 
   return {
     ok: error == null,
@@ -397,6 +436,7 @@ self.onmessage = async (e: MessageEvent) => {
             throw new Error('java worker: baseUrl is required when loaded from a blob/data URL');
           }
         })();
+      persistFiles = (e.data as { persistFiles?: boolean }).persistFiles !== false;
       await init(base);
       self.postMessage({ type: 'initialized', initMs: performance.now() - t0 });
     } catch (err) {
@@ -406,7 +446,8 @@ self.onmessage = async (e: MessageEvent) => {
   }
   if (cmd === 'run') {
     try {
-      const result = await run(e.data.source, e.data.mainClass || 'Main', e.data.input || '');
+      const result = await run(e.data.source, e.data.mainClass || 'Main', e.data.input || '',
+        (e.data as { platform?: 'posix' | 'windows' }).platform || 'posix');
       self.postMessage({ type: 'result', ...result });
     } catch (err) {
       self.postMessage({

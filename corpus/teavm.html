@@ -20,7 +20,7 @@
         try {
           window.corpusPhase = 'loading toolchain';
           const t0 = performance.now();
-          const runtime = await JavaWasm.createRuntime({ baseUrl: '/dist/' });
+          const runtime = await JavaWasm.createRuntime({ baseUrl: '/dist/', persistFiles: false });
           const initMs = Math.round(performance.now() - t0);
           log(`initialized in ${initMs} ms`);
 

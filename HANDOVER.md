@@ -45,7 +45,10 @@ Measured on `corpus/` (145 programs), last full run:
 **Every program in the corpus compiles and runs identically to the current engine.** There is nothing
 deliberately dropped any more either: file I/O works against an in-memory filesystem inside the module
 (`FINDINGS.md` §4c, `patches/README.md` "File I/O"), including create, write, append, read, rename,
-copy, list and delete.
+copy, list and delete — and it now **persists between runs** (snapshot through the host;
+`localStorage` in the browser, `TEAVM_FS_FILE` for the runner). Path semantics have a switch too:
+POSIX by default (like the browser and Doppio), Windows for `java.io.File` on request, with the nio
+layer staying POSIX — so that switch is partial and documented as such.
 
 Where each fixed cluster lives is in `FINDINGS.md` §4. The short version:
 
@@ -99,6 +102,7 @@ Worker protocol (do not break it; the LiveCodes wiring depends on this shape):
 
 | Commit | What |
 |---|---|
+| the persistence commit | **Persistence and the platform switch.** The module serialises its in-memory filesystem at the end of a run (`teavm_fs_snapshot`, exported) and restores it lazily on first `getFile` — lazily because the filesystem is created from `DefaultFileSystem`'s static initializer, before charsets exist, and encoding there traps. Hosts keep the snapshot in `localStorage` / `TEAVM_FS_FILE`; the corpus sets `persistFiles: false` so programs cannot see each other's files. `isWindows()` now reads a host-set flag (POSIX default, Windows opt-in for `java.io.File`), and the comparison normalises path separators. 145/145 still |
 | the file-system commit | **File I/O.** TeaVM already ships a full `java.nio.file` implementation over an in-memory filesystem; it just started empty. Three class-library pieces make it usable: the temp directory pre-created in `InMemoryVirtualFileSystem` (so `createTempFile` works at all), the Java 10 `Reader.transferTo` added to `TReader` (its own `TFiles.readString`/`writeString`/`copy` call it, so those did not even compile), and `TFiles.createDirectories` made idempotent for a one-component path. `file-io` matches; the corpus is **145/145**. Only the two archives need rebuilding (~30 s) |
 | the last-codegen commit | **The dead sibling return.** `try { return } finally { return }` emitted two `i32.const` values in a `(result i32)` function: the try/finally is folded away (correctly — the finally's `return` wins) but the AST kept **two returns**, and the statement emitters walk a list verbatim. The wasm backend now stops at a *directly following* return or throw — only a direct one: dropping statements after a *block* that returns broke `CharsetEncoder.encode`. That took `exceptions-finally` to matching the JDK and the corpus to **144/145** |
 | the listener commit | **The general vtable fix.** Same fault as the one above, one instance further on: `exceptions-stacktrace` and `exception-propagation` read a slot whose implementation (`java.lang.String.equals`) had been dropped, because a call site names the *receiver's* type. `Compiler.java` now reaches the target of every virtual call in every reached method — a method a call site names must exist out of line, since the call may read a vtable slot — which settles as it cascades. Both match JDK 25; the corpus is at 143/145 |
@@ -480,9 +484,10 @@ rewritten in minutes.
    the dependency analysis decided was unreachable. A third, from the file-I/O round: the class library
    can be missing *newer* JDK methods (`Reader.transferTo` was absent, so `Files.readString` did not
    even compile) — check that before blaming the compiler.
-3. **File I/O is per run** — the filesystem lives inside the module and starts empty. Persisting across
-   runs would mean wiring `TFileSystemBridge` into `TFile` and mirroring through the worker's
-   `teavmFile` bridge; `patches/README.md` ("File I/O") has the details.
+3. **The Windows path mode is partial** — `platform: 'windows'` switches `java.io.File` (separators,
+   `getParent`, `isAbsolute`), but `java.nio.file` builds its own paths and stays POSIX, so `Files`
+   directory creation does not follow. Finishing it means normalising paths in `TDefaultPath` too
+   (`patches/README.md`, "The platform switch — and its limit").
 4. **Publishing** `@live-codes/java-wasm` (version `0.0.1`, unpublished) — decide the SDK-patch
    strategy first: we ship build outputs plus vendored classlib classes, not a rewritten third-party
    binary (FINDINGS §5). All five artifacts are in the repo now, and `assets/` is the source of truth,

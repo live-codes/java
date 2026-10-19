@@ -4,8 +4,10 @@ Everything this package pins is in [`patches/manifest.json`](patches/manifest.js
 inventory and the build script cannot drift apart. Check it any time with:
 
 ```bash
-node scripts/upgrade.mjs            # pins, artifact checksums, every patch and whether it is applied
-node scripts/upgrade.mjs --diff     # regenerate patches/diffs/*.patch and prove each one applies
+node scripts/upgrade.mjs                     # pins, artifact checksums, every patch and its marker
+node scripts/upgrade.mjs --diff              # regenerate patches/diffs/*.patch and prove each applies
+node scripts/upgrade.mjs --install <fork>    # copy every patch file to its target in a clone
+node scripts/upgrade.mjs --refresh-upstream  # re-extract patches/upstream/ from the core sources jar
 ```
 
 `--diff` fetches each patch's upstream source (or reads `patches/upstream/` for core classes, which have
@@ -68,15 +70,26 @@ These are build inputs, not sources:
 cd <fork clone>            # e.g. D:\DevWork\teavm-javac-build
 git fetch && git checkout <new-commit>
 
-# 2. re-apply the patches, in this order:
-#    a. fork files: replace them with patches/*.java, then reconcile against what the new commit changed
-#       (patches/diffs/<File>.java.patch is exactly what we changed, so `git apply -3` in the clone is
-#        the starting point, not a blind copy)
-#    b. core shadows: `compiler/src/patches/java/...` — same idea, diff against patches/upstream/
-#    c. classlib vendors: `compiler/src/sharedClasslibEmu/...` + the include list in
-#       `compiler/build.gradle`; each one is optional (see "dropping a patch" below)
-#    d. fork-owned edits: Compiler.java (patches/README.md quotes both hunks)
-#    e. include list: any new file must be added to prepareTeaVMClassLib
+# 2. re-apply the patches. There are two cases and they need different commands:
+#
+#    a. SAME commit (fresh clone, or you just want the fork back in shape):
+node scripts/upgrade.mjs --install <fork clone> --dry-run   # see what goes where
+node scripts/upgrade.mjs --install <fork clone>             # copies all 19 files to their targets
+#
+#    b. NEW commit — do NOT blind-copy: that reverts whatever upstream changed in those files.
+#       Apply our change to the new upstream instead, then resolve conflicts by hand:
+cd <fork clone>
+git apply -3 <repo>/patches/diffs/<File>.java.patch         # one per patch; -3 leaves conflict markers
+#
+#    Either way, two things are still manual because they are edits inside files the fork owns:
+#      * Compiler.java          — the two hunks quoted verbatim in patches/README.md
+#      * compiler/build.gradle  — prepareTeaVMClassLib: one include line per classlib class
+#                                 (manifest target paths give the entry name; TCharacter needs TCharacter*)
+#
+#    c. Core shadows (compiler/src/patches/java/...): before applying, refresh the pristine base they
+#       were diffed against from the core sources jar your fork builds with:
+node scripts/upgrade.mjs --refresh-upstream                 # finds teavm-core-<ver>-sources.jar in the
+                                                            # Gradle cache; --core-sources <jar> overrides
 
 # 3. rebuild everything, inside the container
 docker build -f patches/Dockerfile -t teavm-javac-build .
@@ -122,7 +135,10 @@ node scripts/run-program.mjs stringformat --jdk   # MATCH (engine sanity)
 node scripts/run-program.mjs exceptions --jdk     # MATCH
 node scripts/run-program.mjs enum-map-set --jdk   # MATCH
 node scripts/run-program.mjs exceptions-finally --jdk  # MATCH
-node scripts/run-program.mjs file-io --jdk        # MATCH except the Windows path separator
+node scripts/run-program.mjs file-io              # ok — do NOT gate on its --jdk comparison: the
+                                                  # engine models a POSIX filesystem, so File.isAbsolute
+                                                  # answers differ from a Windows JDK by design. The
+                                                  # corpus (against Doppio, a Linux JVM) is the authority.
 node corpus/run.mjs teavm                     # 145/145, and diff the output against the committed baseline
 ```
 
@@ -149,8 +165,10 @@ upstream 0.14.1 does not have them. The two `new-*` entries have no upstream cou
 - **Core internals move between versions.** `BaseWasmGenerationVisitor` does *not* exist in TeaVM
   0.14.1's Git tag — the fork's core has it, upstream calls it `WasmGCInstructionGenerationVisitor` — so
   a "just fetch the upstream source" diff is impossible for core classes. That is why the pristine
-  bases live in `patches/upstream/`, taken from the core jar the fork actually builds against. On an
-  upgrade, replace those from the new core jar (`javap`/extract) before trusting the diff.
+  bases live in `patches/upstream/`, taken from `teavm-core-<version>-sources.jar` — the exact jar the
+  fork compiles against, e.g.
+  `~/.gradle/caches/modules-2/files-2.1/org.teavm/teavm-core/0.14.1/*/teavm-core-0.14.1-sources.jar`.
+  On an upgrade run `node scripts/upgrade.mjs --refresh-upstream` before trusting the diff.
 - **A patch's assumption can rot.** The concrete checks live in `patches/README.md` under each patch;
   the ones with a `dropWhen` are the first to look at.
 - **The classlib diffs are against the 0.14.1 Git tag, not the jar.** The exact base the class

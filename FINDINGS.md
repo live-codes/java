@@ -178,8 +178,20 @@ Two of these are worked around in the class library/compiler, because the check 
 Java; the rest need the wasm backend itself.
 
 - **`try { return x; } finally { return y; }` emits invalid wasm**: `expected 1 elements on the stack
-  for fallthru, found 2`. Generation succeeds; V8 rejects the module. Narrow: every other try/finally
-  shape works, and a `return` in a `finally` is rare and discouraged.
+  for fallthru, found 2`. Generation succeeds; V8 rejects the module. The generated function shows why
+  — the try/finally is folded away (correctly: the finally's `return` always wins) but a stray value
+  expression is left behind:
+  ```wat
+  (func $Main::overrideReturn (result i32)
+    (call_ref $16 (global.get $Main@initializer))
+    (i32.const 2)
+    (i32.const 2))
+  ```
+  Narrow in a second way too: it is a **Simple-pipeline** fault. At `ADVANCED`
+  (`TEAVM_OPT_LEVEL=ADVANCED node scripts/run-program.mjs exceptions-finally --jdk`) the same source
+  compiles to a valid module that matches the JDK — the package cannot use that level, though, because
+  its fiber runtime needs `SIMPLE` (`src/worker-java.ts`). Every other try/finally shape works, and a
+  `return` in a `finally` is rare and discouraged.
 - **`ArithmeticException` on integer division by zero** is not raised — the wasm `i32.div_s` traps
   instead, so `catch (ArithmeticException)` never runs. `MIN_VALUE / -1` traps too, where Java returns
   `MIN_VALUE`. **Worked around here**: `DivisionCheckTransformer` rewrites int/long

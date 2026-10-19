@@ -90,7 +90,7 @@ if (!compiler.compile()) {
 const generated = compiler.generateWebAssembly({
   outputName: 'app',
   mainClass: 'Main',
-  optimizationLevel: 'SIMPLE',
+  optimizationLevel: process.env.TEAVM_OPT_LEVEL ?? 'SIMPLE',
 });
 if (!generated) {
   console.error(`FAIL generate    ${label}`);

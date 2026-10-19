@@ -133,10 +133,40 @@ returns, and there is a single exception-table entry:
 The `catch` variants that work have the same returns but more exception-table entries, so the trigger
 is this shape rather than "a return in a `finally`" in general.
 
-**Where it lives.** TeaVM core's WasmGC method generator (the exception-table/return lowering), not
-the converter and not the class library. It is reachable from here now — `compiler/src/patches/java`
-is a shadow source set for core classes, and `:compiler:optimizeWasmGC` runs in the container
-(`patches/Dockerfile`) — but no fix has been attempted.
+**Where it lives.** The malformed function is worth looking at, because it says a lot:
+
+```wat
+(func $Main::overrideReturn (result i32)
+  (call_ref $16 (global.get $Main@initializer))
+  (i32.const 2)
+  (i32.const 2)
+ )
+```
+
+The try/finally is **gone** — the optimizer folded it away, correctly, since a `return` in a `finally`
+always wins (`overrideReturn` must return 2 whatever the try body did) — but it left a stray value
+expression behind, so the function's fall-through has two values where one is expected. That is the
+whole fault: **the Simple optimization pipeline leaves an expression whose value is never consumed**,
+and the WasmGC writer emits it as a statement.
+
+**It is specific to the Simple pipeline.** The runner takes `TEAVM_OPT_LEVEL`, and at `ADVANCED` the
+same source compiles to a *valid* module that prints the same thing as the JDK:
+
+```console
+$ TEAVM_OPT_LEVEL=ADVANCED node scripts/run-program.mjs exceptions-finally --jdk
+TRAP exceptions-finally (48939 bytes, run 30001 ms)
+MATCH
+```
+
+(It "traps" only because the package's fiber runtime needs `SIMPLE` — `src/worker-java.ts` says as
+much: at `ADVANCED` the completion callback never fires, which is also why the browser worker cannot
+just use the higher level.) So the search space is the Simple-path optimizer, not the generator and not
+the backend: `TeaVM.inline()` returns immediately at `SIMPLE`, and the passes that do run leave a dead
+expression that the Advanced pipeline's inlining never creates.
+
+It is reachable from here now — `compiler/src/patches/java` shadows core classes, so an optimizer or
+decompiler fix can be carried in this repo — but it has not been attempted. `FINDINGS.md` §4b has the
+fork's own account.
 
 **Impact is narrow**: a `return` inside a `finally` is rare and universally discouraged, and every
 other try/finally shape works.

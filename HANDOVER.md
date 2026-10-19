@@ -469,9 +469,14 @@ rewritten in minutes.
 1. **Decide the branch in §6** — fix the last codegen fault (needs a compiler rebuild, now proven) or
    wire LiveCodes. There is nothing else actionable: no class library is missing an API.
 2. **Codegen** — 1 regression, `exceptions-finally`: `try { return } finally { return }` emits invalid
-   wasm. `run-program.mjs --emit` + `wasm-dis` will show the malformed function (V8's validator names
-   it), and the fix belongs in TeaVM's exception-table lowering — the fork can shadow the responsible
-   generator class through `compiler/src/patches/java`, as it now does for two others.
+   wasm. It is now scoped tightly: the generated function is `[init, const 2, const 2]` — the
+   try/finally was folded away correctly and a stray value expression was left — and it is a
+   **Simple-pipeline** fault, since `TEAVM_OPT_LEVEL=ADVANCED node scripts/run-program.mjs
+   exceptions-finally --jdk` emits a *valid* module that matches the JDK (the package cannot use that
+   level: the fiber runtime needs `SIMPLE`, and the completion callback never fires otherwise). So the
+   search space is the Simple-path optimizer/decompiler; `TeaVM.inline()` returns immediately at
+   `SIMPLE`, and one of the passes that do run leaves a dead expression. Both are shadowable through
+   `compiler/src/patches/java`, as two core classes now are.
 3. **`file-io`** — deliberate; there is no filesystem model in a browser. Do not "fix" it.
 4. **Publishing** `@live-codes/java-wasm` (version `0.0.1`, unpublished) — decide the SDK-patch
    strategy first: we ship build outputs plus vendored classlib classes, not a rewritten third-party
@@ -498,10 +503,12 @@ node scripts/run-program.mjs exceptions-stacktrace --jdk # expect MATCH (the gen
 node scripts/run-program.mjs exception-propagation --jdk # expect MATCH
 ```
 
-For the codegen faults, `--emit` + `wasm-dis` is the loop that worked:
-`node scripts/run-program.mjs enum-map-set --trace --emit D:\DevWork\tools\x.wasm` then
+For the codegen fault, `--emit` + `wasm-dis` is the loop that worked:
+`node scripts/run-program.mjs exceptions-finally --trace --emit D:\DevWork\tools\x.wasm` then
 `D:\DevWork\tools\binaryen-version_133\bin\wasm-dis.exe D:\DevWork\tools\x.wasm -o x.wat` — the
-standalone Binaryen tools read TeaVM's output where the npm `binaryen` binding does not.
+standalone Binaryen tools read TeaVM's output where the npm `binaryen` binding does not. `run-program.mjs`
+also takes `TEAVM_OPT_LEVEL` (default `SIMPLE`, which is what the worker uses) — comparing levels is how
+`exceptions-finally` was narrowed to the Simple pipeline.
 
 Then read §6: the next move is a decision (codegen rebuild vs LiveCodes wiring), not a task you can
 just start. Remember §7 before typing any shell one-liner.

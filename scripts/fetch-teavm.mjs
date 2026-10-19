@@ -40,7 +40,7 @@ const ARTIFACTS = {
   'compile-classlib-teavm.bin': '2148f03d1ff554c8114d434cb826d4c4abad9d898df82f9115daa6ac1be16dba',
   // The runtime class library, which additionally carries the vendored classlib classes
   // (`String.lines()`, `Matcher.results()`, …) and the ArchiveBuilder separator fix.
-  'runtime-classlib-teavm.bin': 'd5d92ff8235d943f5fd1f83d4f5951ccecdf6677f74d48f50640815c3adae4b3',
+  'runtime-classlib-teavm.bin': 'f677a5f6a2e9daa94a1438982737e7778777cf23ec93eca303e49aa9dee45a16',
 };
 
 const assetsDir = join(fileURLToPath(new URL('..', import.meta.url)), 'assets');

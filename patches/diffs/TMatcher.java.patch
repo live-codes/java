@@ -1,0 +1,27 @@
+diff --git a/a/TMatcher.java b/b/TMatcher.java
+index f29ebdb..46a0394 100644
+--- a/a/TMatcher.java
++++ b/b/TMatcher.java
+@@ -547,6 +547,22 @@ public final class TMatcher implements TMatchResult {
+         return this.matchResult.cloneImpl();
+     }
+ 
++    /**
++     * Fork addition: TeaVM 0.14.1 does not implement {@code Matcher.results()}, so its javac SDK
++     * does not declare it either and any program using it fails to compile. The JDK's version is
++     * lazy and continues from the matcher's current position, which is what this does too; the
++     * difference is that this collects eagerly, so it answers differently only for an unbounded
++     * input.
++     */
++    public org.teavm.classlib.java.util.stream.TStream<TMatchResult> results() {
++        org.teavm.classlib.java.util.TArrayList<TMatchResult> found =
++                new org.teavm.classlib.java.util.TArrayList<>();
++        while (find()) {
++            found.add(toMatchResult());
++        }
++        return found.stream();
++    }
++
+     /**
+      * Determines whether this matcher has anchoring bounds enabled or not. When
+      * anchoring bounds are enabled, the start and end of the input match the

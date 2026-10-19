@@ -1,0 +1,45 @@
+diff --git a/a/WasmGCVirtualTableBuilder.java b/b/WasmGCVirtualTableBuilder.java
+index 1b067ca..6757b0b 100644
+--- a/a/WasmGCVirtualTableBuilder.java
++++ b/b/WasmGCVirtualTableBuilder.java
+@@ -15,7 +15,7 @@
+  */
+ package org.teavm.backend.wasm.vtable;
+ 
+-import com.carrotsearch.hppc.ObjectIntHashMap;
++import java.util.HashMap;
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.HashMap;
+@@ -330,7 +330,7 @@ class WasmGCVirtualTableBuilder {
+         }
+         table.filled = true;
+         var parent = table.parent;
+-        var indexes = new ObjectIntHashMap<MethodDescriptor>();
++        var indexes = new HashMap<MethodDescriptor, Integer>();
+         if (parent != null) {
+             fillTable(parent);
+             table.entries.addAll(parent.entries);
+@@ -361,9 +361,6 @@ class WasmGCVirtualTableBuilder {
+                             if (method.getProgram() == null && !method.hasModifier(ElementModifier.NATIVE)) {
+                                 continue;
+                             }
+-                            if (!isVirtual.test(method.getReference()) && !method.getReference().equals(CLONE_METHOD)) {
+-                                continue;
+-                            }
+                             table.currentImplementors.put(method.getDescriptor(), method.getReference());
+                             table.implementorsFromInterfaces.remove(method.getDescriptor());
+                         } else {
+@@ -386,9 +383,9 @@ class WasmGCVirtualTableBuilder {
+                 }
+             }
+         }
+-        for (var entry : indexes) {
+-            var implementor = table.currentImplementors.get(entry.key);
+-            table.implementors.set(entry.value, implementor);
++        for (var entry : indexes.entrySet()) {
++            var implementor = table.currentImplementors.get(entry.getKey());
++            table.implementors.set(entry.getValue(), implementor);
+         }
+     }
+ 

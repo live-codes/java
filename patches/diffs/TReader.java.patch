@@ -1,0 +1,36 @@
+diff --git a/a/TReader.java b/b/TReader.java
+index 2fe0e73..4792812 100644
+--- a/a/TReader.java
++++ b/b/TReader.java
+@@ -16,6 +16,8 @@
+ package org.teavm.classlib.java.io;
+ 
+ import java.io.IOException;
++import java.io.Writer;
++import java.util.Objects;
+ import org.teavm.classlib.java.lang.TMath;
+ import org.teavm.classlib.java.lang.TObject;
+ import org.teavm.classlib.java.lang.TReadable;
+@@ -96,4 +98,22 @@ public abstract class TReader implements TCloseable, TReadable {
+     public void reset() throws IOException {
+         throw new IOException();
+     }
++
++    /**
++     * Fork addition: the Java 10 method. TeaVM 0.14.1's class library predates it, but its own
++     * {@code TFiles.readString}, {@code writeString} and {@code copy} call it — so those failed to
++     * compile against the generated SDK, with "Method java.io.BufferedReader.transferTo(Ljava/io/Writer;)J
++     * was not found". Reads to end of stream and writes everything to {@code out}.
++     */
++    public long transferTo(Writer out) throws IOException {
++        Objects.requireNonNull(out, "out");
++        char[] buffer = new char[8192];
++        long transferred = 0;
++        int charsRead;
++        while ((charsRead = read(buffer, 0, buffer.length)) >= 0) {
++            out.write(buffer, 0, charsRead);
++            transferred += charsRead;
++        }
++        return transferred;
++    }
+ }

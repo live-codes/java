@@ -1,0 +1,30 @@
+diff --git a/a/TFiles.java b/b/TFiles.java
+index ac702a5..f7b52a3 100644
+--- a/a/TFiles.java
++++ b/b/TFiles.java
+@@ -26,6 +26,7 @@ import java.io.StringWriter;
+ import java.io.UncheckedIOException;
+ import java.nio.charset.Charset;
+ import java.nio.charset.StandardCharsets;
++import java.nio.file.FileAlreadyExistsException;
+ import java.nio.file.FileSystemException;
+ import java.nio.file.NoSuchFileException;
+ import java.util.Arrays;
+@@ -77,7 +78,16 @@ public final class TFiles {
+ 
+     public static TPath createDirectories(TPath dir, TFileAttribute<?>... attrs) throws IOException {
+         if (dir.getNameCount() <= 1) {
+-            return createDirectory(dir, attrs);
++            // Fork fix: the JDK swallows FileAlreadyExistsException here, so createDirectories on an
++            // existing path is a no-op. TeaVM let it escape, and since a path like "/tmp" has one
++            // component, the idempotent "mkdir -p" idiom -- Files.createDirectories(existingDir) --
++            // threw where the multi-component branch below already tolerates an existing directory.
++            try {
++                createDirectory(dir, attrs);
++            } catch (FileAlreadyExistsException e) {
++                // already there, which is what the caller asked for
++            }
++            return dir;
+         }
+ 
+         var index = dir.getNameCount() + 1;

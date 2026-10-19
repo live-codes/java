@@ -1,0 +1,68 @@
+diff --git a/a/TString.java b/b/TString.java
+index 6bb3f0d..9156d50 100644
+--- a/a/TString.java
++++ b/b/TString.java
+@@ -26,19 +26,21 @@ import org.teavm.classlib.java.nio.TByteBuffer;
+ import org.teavm.classlib.java.nio.TCharBuffer;
+ import org.teavm.classlib.java.nio.charset.TCharset;
+ import org.teavm.classlib.java.nio.charset.impl.TUTF8Charset;
++import org.teavm.classlib.java.util.TArrayList;
+ import org.teavm.classlib.java.util.TArrays;
+ import org.teavm.classlib.java.util.TComparator;
+ import org.teavm.classlib.java.util.TFormatter;
++import org.teavm.classlib.java.util.TList;
+ import org.teavm.classlib.java.util.TLocale;
+ import org.teavm.classlib.java.util.regex.TPattern;
+ import org.teavm.classlib.java.util.stream.TIntStream;
++import org.teavm.classlib.java.util.stream.TStream;
+ import org.teavm.classlib.java.util.stream.intimpl.TStringCharsStream;
+ import org.teavm.classlib.java.util.stream.intimpl.TStringCodePointsStream;
+ import org.teavm.dependency.PluggableDependency;
+-import org.teavm.interop.Intrinsified;
+ import org.teavm.interop.NoSideEffects;
+ 
+-public final class TString extends TObject implements TSerializable, TComparable<TString>, TCharSequence {
++public class TString extends TObject implements TSerializable, TComparable<TString>, TCharSequence {
+     private static final char[] EMPTY_CHARS = new char[0];
+     private static final TString EMPTY = new TString();
+     public static final TComparator<TString> CASE_INSENSITIVE_ORDER = (o1, o2) -> o1.compareToIgnoreCase(o2);
+@@ -616,6 +618,31 @@ public final class TString extends TObject implements TSerializable, TComparable
+         return new TStringCodePointsStream(this);
+     }
+ 
++    /**
++     * Fork addition: TeaVM 0.14.1 does not implement {@code String.lines()}, so its javac SDK does
++     * not declare it either and any program using it fails to compile. Splits on {@code \n},
++     * {@code \r} and {@code \r\n}, with no trailing empty line, as the JDK specifies.
++     */
++    public TStream<TString> lines() {
++        char[] chars = toCharArray();
++        TList<TString> result = new TArrayList<>();
++        int start = 0;
++        for (int i = 0; i < chars.length; i++) {
++            char c = chars[i];
++            if (c == '\n' || c == '\r') {
++                result.add(substring(start, i));
++                if (c == '\r' && i + 1 < chars.length && chars[i + 1] == '\n') {
++                    i++;
++                }
++                start = i + 1;
++            }
++        }
++        if (start < chars.length) {
++            result.add(substring(start, chars.length));
++        }
++        return result.stream();
++    }
++
+     public static String valueOf(Object obj) {
+         return obj != null ? obj.toString() : "null";
+     }
+@@ -873,7 +900,6 @@ public final class TString extends TObject implements TSerializable, TComparable
+ 
+     @PluggableDependency(StringNativeDependency.class)
+     @NoSideEffects
+-    @Intrinsified
+     public native TString intern();
+ 
+     public boolean matches(String regex) {

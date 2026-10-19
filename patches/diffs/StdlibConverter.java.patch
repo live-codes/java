@@ -1,0 +1,438 @@
+diff --git a/a/StdlibConverter.java b/b/StdlibConverter.java
+index ba01f0f..9bbda82 100644
+--- a/a/StdlibConverter.java
++++ b/b/StdlibConverter.java
+@@ -23,8 +23,11 @@ import java.io.IOException;
+ import java.io.InputStream;
+ import java.io.UncheckedIOException;
+ import java.nio.file.Files;
+-import java.util.Arrays;
++import java.util.ArrayList;
++import java.util.HashMap;
+ import java.util.LinkedHashSet;
++import java.util.List;
++import java.util.Map;
+ import java.util.Set;
+ import java.util.zip.ZipEntry;
+ import java.util.zip.ZipInputStream;
+@@ -37,8 +40,26 @@ import org.objectweb.asm.MethodVisitor;
+ import org.objectweb.asm.Opcodes;
+ import org.objectweb.asm.Type;
+ 
++/**
++ * Converts TeaVM's class library (packages {@code org.teavm.classlib.java.*} with {@code T}-prefixed
++ * type names) into the {@code java.*} shape that javac consumes when compiling user code.
++ *
++ * <p>Two things in the class library are metadata rather than names, and both have to be applied
++ * here or the generated SDK is not the API javac will see at runtime:
++ *
++ * <ul>
++ *   <li>{@code @org.teavm.interop.Rename} — a member is declared under an internal name and renamed
++ *       by TeaVM when it builds the runtime (e.g. {@code getClass0} becomes {@code getClass}).
++ *       Without applying it, {@code getClass()}, {@code Throwable.getMessage()}, {@code clone()},
++ *       {@code notify()} and friends do not resolve for user code.</li>
++ *   <li>{@code InnerClasses} — nested types are renamed like any other class, so the
++ *       {@code InnerClasses} entries must be renamed with them. Otherwise {@code Map.Entry} does not
++ *       resolve even though {@code java/util/Map$Entry.class} is present.</li>
++ * </ul>
++ */
+ public class StdlibConverter extends ClassVisitor {
+     private static final String PREFIX = "org/teavm/classlib/java/";
++    private static final String RENAME_DESC = "Lorg/teavm/interop/Rename;";
+     private static final String[] EXCLUDED = {
+             "org/teavm/classlib/",
+             "org/teavm/jso/impl/",
+@@ -46,9 +67,27 @@ public class StdlibConverter extends ClassVisitor {
+     };
+     boolean visible;
+     String className;
+-
+-    public StdlibConverter(ClassVisitor cv) {
++    private boolean isInterface;
++    private boolean isAnnotation;
++    /** {@code name+descriptor} of every method this class has emitted. */
++    private final Set<String> declaredMethods = new LinkedHashSet<>();
++    private final Map<String, Set<String>> visibleOwners;
++    private final Map<String, String> renameTargets;
++    /** Members this class has already emitted, so an input that repeats one does not duplicate it. */
++    private final Set<String> emitted = new LinkedHashSet<>();
++    /** Java-visible {@code name+descriptor} of every non-abstract method of a platform class. */
++    private static final Map<String, Set<String>> jdkNonAbstract = new HashMap<>();
++
++    /**
++     * @param visibleOwners {@code name+descriptor} as it would look after renaming, mapped to the raw
++     *                      names that claim it, so a rename that would duplicate a member is skipped
++     * @param renameTargets {@code name+descriptor} to the Java-visible name from {@code @Rename}
++     */
++    public StdlibConverter(ClassVisitor cv, Map<String, Set<String>> visibleOwners,
++            Map<String, String> renameTargets) {
+         super(Opcodes.ASM9, cv);
++        this.visibleOwners = visibleOwners;
++        this.renameTargets = renameTargets;
+     }
+ 
+     @Override
+@@ -65,6 +104,8 @@ public class StdlibConverter extends ClassVisitor {
+ 
+         visible = true;
+         className = name;
++        isInterface = (access & Opcodes.ACC_INTERFACE) != 0;
++        isAnnotation = (access & Opcodes.ACC_ANNOTATION) != 0;
+         if (superName != null) {
+             superName = rename(superName);
+         }
+@@ -79,16 +120,12 @@ public class StdlibConverter extends ClassVisitor {
+         }
+ 
+         if (interfaces != null) {
+-            int interfaceCount = 0;
+             for (int i = 0; i < interfaces.length; ++i) {
+-                var iface = rename(interfaces[i]);
+-                if (!iface.equals(name)) {
+-                    interfaces[interfaceCount++] = iface;
+-                }
+-            }
+-            if (interfaceCount != interfaces.length) {
+-                interfaces = Arrays.copyOf(interfaces, interfaceCount);
++                interfaces[i] = rename(interfaces[i]);
+             }
++            // TeaVM's `TAnnotation` extends the very interface it renames to, which would leave
++            // `java.lang.annotation.Annotation` extending itself ("cyclic inheritance").
++            interfaces = removeSelfType(interfaces, name);
+         }
+         if (signature != null) {
+             signature = renameClassSignature(signature);
+@@ -100,12 +137,37 @@ public class StdlibConverter extends ClassVisitor {
+         super.visit(version, access, name, signature, superName, interfaces);
+     }
+ 
++    @Override
++    public void visitInnerClass(String name, String outerName, String innerName, int access) {
++        super.visitInnerClass(rename(name), outerName != null ? rename(outerName) : null, innerName, access);
++    }
++
++    @Override
++    public void visitOuterClass(String owner, String name, String descriptor) {
++        super.visitOuterClass(rename(owner), name, descriptor);
++    }
++
++    @Override
++    public void visitNestHost(String nestHost) {
++        super.visitNestHost(rename(nestHost));
++    }
++
++    @Override
++    public void visitNestMember(String nestMember) {
++        super.visitNestMember(rename(nestMember));
++    }
++
+     @Override
+     public FieldVisitor visitField(int access, String name, String desc, String signature, Object value) {
+         if ((access & Opcodes.ACC_PUBLIC) == 0 && ((access & Opcodes.ACC_PROTECTED) == 0)) {
+             return null;
+         }
+-        desc = renameDesc(desc);
++        String visibleDesc = renameDesc(desc);
++        name = renameMember(name, desc, visibleDesc);
++        desc = visibleDesc;
++        if (!emitted.add(name + desc)) {
++            return null;
++        }
+         if (signature != null) {
+             signature = renameFieldSignature(signature);
+         }
+@@ -126,7 +188,13 @@ public class StdlibConverter extends ClassVisitor {
+         if ((access & Opcodes.ACC_PUBLIC) == 0 && ((access & Opcodes.ACC_PROTECTED) == 0)) {
+             return null;
+         }
+-        desc = renameMethodDesc(desc);
++        String visibleDesc = renameMethodDesc(desc);
++        name = renameMember(name, desc, visibleDesc);
++        desc = visibleDesc;
++        if (!emitted.add(name + desc)) {
++            return null;
++        }
++        access = relaxAbstract(access, name, desc);
+         if (signature != null) {
+             signature = renameMethodSignature(signature);
+         }
+@@ -136,9 +204,149 @@ public class StdlibConverter extends ClassVisitor {
+                 exceptions[i] = rename(exceptions[i]);
+             }
+         }
++        declaredMethods.add(name + desc);
+         return new MethodVisitorImpl(super.visitMethod(access, name, desc, signature, exceptions));
+     }
+ 
++    /**
++     * Applies {@code @Rename}. Constructors keep their special names, and a rename is skipped when a
++     * sibling member already answers to the same Java-visible signature — the class file must not end
++     * up with two members of one name and descriptor ({@code equals0(TObject)} is {@code @Rename}
++     * "equals" but {@code equals(Object)} exists, and both descriptors rename to the same thing).
++     */
++    private String renameMember(String name, String desc, String visibleDesc) {
++        if (name.equals("<init>") || name.equals("<clinit>")) {
++            return name;
++        }
++        String target = renameTargets.get(name + desc);
++        if (target == null || target.equals(name)) {
++            return name;
++        }
++        // A static factory that TeaVM turns into a constructor (`TThrowable.init` is @Rename
++        // "<init>") must stay a method here: the class already has a constructor with that
++        // descriptor, and javac rejects two of them.
++        if (target.charAt(0) == '<') {
++            return name;
++        }
++        Set<String> owners = visibleOwners.get(target + visibleDesc);
++        if (owners != null && owners.size() > 1) {
++            return name;
++        }
++        return target;
++    }
++
++    private static String[] removeSelfType(String[] interfaces, String name) {
++        for (var type : interfaces) {
++            if (type.equals(name)) {
++                var result = new String[interfaces.length - 1];
++                var count = 0;
++                for (var other : interfaces) {
++                    if (!other.equals(name)) {
++                        result[count++] = other;
++                    }
++                }
++                return result;
++            }
++        }
++        return interfaces;
++    }
++
++    /**
++     * TeaVM's class library declares some interfaces by hand, and where it does, a member the JDK
++     * implements as a {@code default} method comes out abstract. javac then demands that every
++     * implementer supply it — {@code implements CharSequence} fails with "does not override abstract
++     * method isEmpty()", and the same happens for {@code Iterator.remove()}. The platform the compiler
++     * runs on knows the real answer, so ask it and drop the flag when the JDK has a body.
++     */
++    private int relaxAbstract(int access, String name, String desc) {
++        if (!isInterface || (access & Opcodes.ACC_ABSTRACT) == 0
++                || className == null || !className.startsWith("java/")) {
++            return access;
++        }
++        if (jdkNonAbstract.computeIfAbsent(className, StdlibConverter::nonAbstractMethods)
++                .contains(name + desc)) {
++            return access & ~Opcodes.ACC_ABSTRACT;
++        }
++        return access;
++    }
++
++    private static Set<String> nonAbstractMethods(String className) {
++        var result = new LinkedHashSet<String>();
++        try {
++            var type = Class.forName(className.replace('/', '.'), false, ClassLoader.getPlatformClassLoader());
++            for (var method : type.getDeclaredMethods()) {
++                if (!java.lang.reflect.Modifier.isAbstract(method.getModifiers())) {
++                    result.add(method.getName() + Type.getMethodDescriptor(method));
++                }
++            }
++        } catch (ClassNotFoundException | LinkageError e) {
++            // Not in this JDK (TeaVM ships a few java.* classes of its own) — leave the flags alone.
++        }
++        return result;
++    }
++
++    /**
++     * Gives an annotation the elements the platform JDK declares for it.
++     *
++     * <p>The class library's annotation stubs are markers: TeaVM's {@code TSuppressWarnings} declares
++     * no {@code value()}, so the SDK's {@code java.lang.SuppressWarnings} has no elements either.
++     * javac resolves {@code @SuppressWarnings("unchecked")} against the SDK, finds no element to bind
++     * the value to, and dies with a raw {@code TypeError} inside the compiler rather than reporting
++     * anything — any program that uses the annotation fails, with no diagnostic.
++     *
++     * <p>Annotation elements are declarations: they carry compile-time metadata and are never invoked
++     * at runtime, so taking the platform's list here cannot make a call that then fails at runtime.
++     * For the same reason only annotations are filled in this way — adding the platform's methods to
++     * an ordinary class {@code T}-stub would turn today's compile-time "cannot find symbol" into a
++     * runtime failure.
++     *
++     * <p>The platform's class file is copied from rather than reflected over, so an element arrives
++     * with everything it carries — {@code @Deprecated} needs {@code since()}'s and
++     * {@code forRemoval()}'s default values, which live in the {@code AnnotationDefault} attribute
++     * and without which javac rejects {@code @Deprecated(since = "9")}.
++     */
++    @Override
++    public void visitEnd() {
++        if (visible && isAnnotation && className != null && className.startsWith("java/")) {
++            copyPlatformElements();
++        }
++        super.visitEnd();
++    }
++
++    private void copyPlatformElements() {
++        byte[] platform = platformClassBytes(className);
++        if (platform == null) {
++            return;
++        }
++        // The visitor has no delegate, so only visitMethod does anything: class-level annotations
++        // stay as the class library declared them.
++        new ClassReader(platform).accept(new ClassVisitor(Opcodes.ASM9) {
++            @Override
++            public MethodVisitor visitMethod(int access, String name, String desc, String signature,
++                    String[] exceptions) {
++                if (name.equals("<init>") || name.equals("<clinit>")
++                        || declaredMethods.contains(name + desc)) {
++                    return null;
++                }
++                // A plain MethodVisitor with a delegate forwards every call — including
++                // AnnotationDefault — onto the class being written.
++                return new MethodVisitor(Opcodes.ASM9,
++                        StdlibConverter.super.visitMethod(access, name, desc, null, null)) {
++                };
++            }
++        }, ClassReader.SKIP_CODE | ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
++    }
++
++    private static byte[] platformClassBytes(String className) {
++        try (InputStream in = ClassLoader.getPlatformClassLoader()
++                .getResourceAsStream(className + ".class")) {
++            return in != null ? in.readAllBytes() : null;
++        } catch (IOException e) {
++            // Not in this JDK (TeaVM ships a few java.* classes of its own) — leave the stub alone.
++            return null;
++        }
++    }
++
+     @Override
+     public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+         return super.visitAnnotation(desc, visible);
+@@ -197,7 +405,7 @@ public class StdlibConverter extends ClassVisitor {
+         }
+     }
+ 
+-    private String rename(String className) {
++    private static String rename(String className) {
+         if (className.startsWith(PREFIX)) {
+             int slashIndex = className.lastIndexOf('/');
+             if (className.charAt(slashIndex + 1) != 'T') {
+@@ -213,13 +421,13 @@ public class StdlibConverter extends ClassVisitor {
+         }
+     }
+ 
+-    private String renameDesc(String desc) {
++    private static String renameDesc(String desc) {
+         DescRename rename = new DescRename(desc);
+         rename.renameType();
+         return rename.sb.toString();
+     }
+ 
+-    private String renameMethodDesc(String desc) {
++    private static String renameMethodDesc(String desc) {
+         DescRename rename = new DescRename(desc);
+         assert desc.charAt(0) == '(';
+         rename.sb.append('(');
+@@ -233,7 +441,7 @@ public class StdlibConverter extends ClassVisitor {
+         return rename.sb.toString();
+     }
+ 
+-    class DescRename {
++    static class DescRename {
+         String desc;
+         StringBuilder sb;
+         int index;
+@@ -457,6 +665,75 @@ public class StdlibConverter extends ClassVisitor {
+         }
+     }
+ 
++    /**
++     * Collects a class's declared members and its {@code @Rename} targets before conversion, because
++     * the converter has to know both before it can emit any member.
++     */
++    static class MemberScanner extends ClassVisitor {
++        private final List<String[]> members = new ArrayList<>();
++        private final Map<String, String> renameTargets = new HashMap<>();
++
++        MemberScanner() {
++            super(Opcodes.ASM9);
++        }
++
++        @Override
++        public FieldVisitor visitField(int access, String name, String desc, String signature, Object value) {
++            members.add(new String[] { name, desc, renameDesc(desc) });
++            String key = name + desc;
++            return new FieldVisitor(Opcodes.ASM9) {
++                @Override
++                public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
++                    return capture(key, desc);
++                }
++            };
++        }
++
++        @Override
++        public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
++            members.add(new String[] { name, desc, renameMethodDesc(desc) });
++            String key = name + desc;
++            return new MethodVisitor(Opcodes.ASM9) {
++                @Override
++                public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
++                    return capture(key, desc);
++                }
++            };
++        }
++
++        /**
++         * Java-visible {@code name+descriptor} to the raw names that would answer to it. More than one
++         * raw name means a rename would produce a duplicate member, so it has to be left alone.
++         */
++        Map<String, Set<String>> visibleOwners() {
++            Map<String, Set<String>> owners = new HashMap<>();
++            for (String[] member : members) {
++                String target = renameTargets.get(member[0] + member[1]);
++                String visibleName = target != null ? target : member[0];
++                owners.computeIfAbsent(visibleName + member[2], key -> new LinkedHashSet<>()).add(member[0]);
++            }
++            return owners;
++        }
++
++        Map<String, String> renameTargets() {
++            return renameTargets;
++        }
++
++        private AnnotationVisitor capture(String key, String desc) {
++            if (!RENAME_DESC.equals(desc)) {
++                return null;
++            }
++            return new AnnotationVisitor(Opcodes.ASM9) {
++                @Override
++                public void visit(String name, Object value) {
++                    if ("value".equals(name) && value instanceof String) {
++                        renameTargets.put(key, (String) value);
++                    }
++                }
++            };
++        }
++    }
++
+     public static void main(String[] args) throws IOException {
+         try (var output = new ArchiveBuilder(new FileOutputStream(args[0]))) {
+             var packageNames = new LinkedHashSet<String>();
+@@ -503,10 +780,16 @@ public class StdlibConverter extends ClassVisitor {
+         }
+     }
+ 
+-    private static void addFile(InputStream input, ArchiveBuilder output, Set<String> packageNames) throws IOException {
+-        ClassReader reader = new ClassReader(input);
++    private static void addFile(InputStream input, ArchiveBuilder output, Set<String> packageNames)
++            throws IOException {
++        byte[] classBytes = input.readAllBytes();
++        ClassReader reader = new ClassReader(classBytes);
++
++        MemberScanner scanner = new MemberScanner();
++        reader.accept(scanner, ClassReader.SKIP_CODE | ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
++
+         ClassWriter writer = new ClassWriter(0);
+-        StdlibConverter converter = new StdlibConverter(writer);
++        StdlibConverter converter = new StdlibConverter(writer, scanner.visibleOwners(), scanner.renameTargets());
+         reader.accept(converter, ClassReader.SKIP_CODE | ClassReader.SKIP_FRAMES
+                 | ClassReader.SKIP_DEBUG);
+         if (converter.visible) {

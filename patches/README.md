@@ -1,5 +1,10 @@
 # Upstream fix: `StdlibConverter` (teavm-javac)
 
+> **Upgrading the toolchain?** Read [`UPGRADING.md`](../UPGRADING.md). Every pin and patch is recorded
+> in [`manifest.json`](manifest.json) — check it with `node scripts/upgrade.mjs`, and regenerate the
+> per-file diffs with `node scripts/upgrade.mjs --diff`. The diffs live in `patches/diffs/` and are
+> each proven by applying them back to the upstream source they were taken from.
+
 `StdlibConverter.java` here is a drop-in replacement for
 `compiler/src/main/java/org/teavm/javac/StdlibConverter.java` in
 [`Vsprocessing/teavm-javac`](https://github.com/Vsprocessing/teavm-javac) (same file in

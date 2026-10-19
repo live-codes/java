@@ -1,0 +1,34 @@
+diff --git a/a/CompilerResourceSupplier.java b/b/CompilerResourceSupplier.java
+index 4c0835a..1f907cf 100644
+--- a/a/CompilerResourceSupplier.java
++++ b/b/CompilerResourceSupplier.java
+@@ -26,6 +26,7 @@ import org.teavm.classlib.ResourceSupplier;
+ import org.teavm.classlib.ResourceSupplierContext;
+ import org.teavm.model.FieldReader;
+ import org.teavm.model.MethodDescriptor;
++import org.teavm.model.MethodReader;
+ import org.teavm.model.ValueType;
+ 
+ public final class CompilerResourceSupplier implements ResourceSupplier, ReflectionSupplier {
+@@ -89,7 +90,20 @@ public final class CompilerResourceSupplier implements ResourceSupplier, Reflect
+ 
+     @Override
+     public Collection<MethodDescriptor> getAccessibleMethods(ReflectionContext context, String className) {
+-        return REFLECTIVE_DEFAULT_CONSTRUCTOR_CLASSES.contains(className) ? List.of(DEFAULT_CONSTRUCTOR) : List.of();
++        if (!isApplicationClass(className)) {
++            return REFLECTIVE_DEFAULT_CONSTRUCTOR_CLASSES.contains(className) ? List.of(DEFAULT_CONSTRUCTOR) : List.of();
++        }
++        // Fork addition: application classes keep all their methods, the same rule getAccessibleFields
++        // already applies to fields. Before this, only the three compiler-internal classes above had
++        // any accessible method, so `Class.getDeclaredMethods()` on user code returned an empty array
++        // and getMethod/getDeclaredMethod always threw NoSuchMethodException — even though fields,
++        // classes and annotations worked. Being permissive matches the JDK, and it stays cheap because
++        // ReflectionDependencyListener only asks about classes whose Class object actually reaches a
++        // reflection API.
++        var cls = context.getClassSource().get(className);
++        return cls != null
++                ? cls.getMethods().stream().map(MethodReader::getDescriptor).collect(Collectors.toList())
++                : List.of();
+     }
+ 
+     private static boolean isApplicationClass(String className) {

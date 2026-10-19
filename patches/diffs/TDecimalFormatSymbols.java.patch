@@ -1,0 +1,45 @@
+diff --git a/a/TDecimalFormatSymbols.java b/b/TDecimalFormatSymbols.java
+index 6252408..4420305 100644
+--- a/a/TDecimalFormatSymbols.java
++++ b/b/TDecimalFormatSymbols.java
+@@ -43,6 +43,22 @@ public class TDecimalFormatSymbols implements Cloneable {
+         initData();
+     }
+ 
++    private TDecimalFormatSymbols(TDecimalFormatSymbols source) {
++        locale = source.locale;
++        zeroDigit = source.zeroDigit;
++        groupingSeparator = source.groupingSeparator;
++        decimalSeparator = source.decimalSeparator;
++        perMill = source.perMill;
++        percent = source.percent;
++        digit = source.digit;
++        patternSeparator = source.patternSeparator;
++        nan = source.nan;
++        infinity = source.infinity;
++        minusSign = source.minusSign;
++        monetaryDecimalSeparator = source.monetaryDecimalSeparator;
++        exponentSeparator = source.exponentSeparator;
++    }
++
+     private void initData() {
+         DecimalData data = CLDRHelper.resolveDecimalData(locale.getLanguage(), locale.getCountry());
+         zeroDigit = '0';
+@@ -175,12 +191,12 @@ public class TDecimalFormatSymbols implements Cloneable {
+         this.locale = locale;
+     }
+ 
++    // Fork addition: Object.clone() is broken on the WasmGC backend — the copy it allocates has no
++    // vtable, so the first virtual call on the copy traps with "dereferencing a null pointer".
++    // TDecimalFormat clones its symbols on construction, which is what made every %f/%e conversion
++    // die inside DecimalFormat.forDigit; copy the fields explicitly instead.
+     @Override
+     public Object clone() {
+-        try {
+-            return super.clone();
+-        } catch (CloneNotSupportedException e) {
+-            throw new AssertionError("This exception should not been thrown", e);
+-        }
++        return new TDecimalFormatSymbols(this);
+     }
+ }

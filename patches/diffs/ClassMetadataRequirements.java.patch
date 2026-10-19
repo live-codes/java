@@ -1,0 +1,54 @@
+diff --git a/a/ClassMetadataRequirements.java b/b/ClassMetadataRequirements.java
+index 8beec1c..eccdc01 100644
+--- a/a/ClassMetadataRequirements.java
++++ b/b/ClassMetadataRequirements.java
+@@ -52,6 +52,11 @@ public class ClassMetadataRequirements {
+     static final MethodReference typeVarConstructor = new MethodReference("java.lang.reflect.TypeVariableImpl",
+             "create", ValueType.object("java.lang.String"), ValueType.object("java.lang.reflect.TypeVariableImpl"));
+     private static final ClassInfo EMPTY_INFO = new ClassInfo();
++    private static final ClassInfo NAME_ONLY_INFO = createNameOnlyInfo();
++    private static final MethodReference FOR_NAME_METHOD = new MethodReference(Class.class, "forName",
++            String.class, Class.class);
++    private static final MethodReference FOR_NAME_3_METHOD = new MethodReference(Class.class, "forName",
++            String.class, boolean.class, ClassLoader.class);
+     private Map<ValueType, ClassInfo> requirements = new HashMap<>();
+     private boolean hasArrayGet;
+     private boolean hasArraySet;
+@@ -80,6 +85,16 @@ public class ClassMetadataRequirements {
+             addClassesRequiringName(requirements, getNameMethod.getVariable(0).getClassValueNode().getTypes());
+         }
+ 
++        // Fork fix: the classes collected above are only the ones the analyzer could prove reach a Class
++        // value. Class.getName() must also answer for a class obtained any other way -- Object.getClass(),
++        // Class.forName, Class.getSuperclass, a Class kept in a collection -- and forName itself resolves
++        // names out of the generated ClassInfo table. So if either is reached, every class gets a name.
++        var forNameMethod = dependencyInfo.getMethod(FOR_NAME_METHOD);
++        var forName3Method = dependencyInfo.getMethod(FOR_NAME_3_METHOD);
++        if (forNameMethod != null && forNameMethod.isUsed() || forName3Method != null && forName3Method.isUsed()) {
++            hasName = true;
++        }
++
+         MethodDependencyInfo getSimpleNameMethod = dependencyInfo.getMethod(GET_SIMPLE_NAME_METHOD);
+         if (getSimpleNameMethod != null) {
+             hasSimpleName = true;
+@@ -253,11 +268,19 @@ public class ClassMetadataRequirements {
+     public Info getInfo(ValueType className) {
+         ClassInfo result = requirements.get(className);
+         if (result == null) {
+-            result = EMPTY_INFO;
++            result = hasName ? NAME_ONLY_INFO : EMPTY_INFO;
++        } else if (hasName) {
++            result.name = true;
+         }
+         return result;
+     }
+ 
++    private static ClassInfo createNameOnlyInfo() {
++        var info = new ClassInfo();
++        info.name = true;
++        return info;
++    }
++
+     public boolean hasArrayGet() {
+         return hasArrayGet;
+     }

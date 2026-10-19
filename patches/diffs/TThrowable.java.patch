@@ -1,0 +1,26 @@
+diff --git a/a/TThrowable.java b/b/TThrowable.java
+index 0e7c91a..b074582 100644
+--- a/a/TThrowable.java
++++ b/b/TThrowable.java
+@@ -257,13 +257,20 @@ public class TThrowable extends RuntimeException {
+ 
+     @Rename("getSuppressed")
+     public final TThrowable[] getSuppressed0() {
+-        return TArrays.copyOf(suppressed, suppressed.length);
++        // Fork addition: `suppressed` is null here, not empty — TeaVM renames the real constructor to
++        // `fakeInit` and runs the `init` methods instead, so the field initializer above never
++        // executes. Both this and addSuppressed dereferenced it and trapped.
++        return suppressed != null ? TArrays.copyOf(suppressed, suppressed.length) : new TThrowable[0];
+     }
+ 
+     public final void addSuppressed(TThrowable exception) {
+         if (!suppressionEnabled) {
+             return;
+         }
++        if (suppressed == null) {
++            suppressed = new TThrowable[] { exception };
++            return;
++        }
+         suppressed = TArrays.copyOf(suppressed, suppressed.length + 1);
+         suppressed[suppressed.length - 1] = exception;
+     }

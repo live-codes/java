@@ -1,0 +1,191 @@
+{
+  "teavm": {
+    "repo": "Vsprocessing/teavm-javac",
+    "commit": "d1514ab06d3690b0bc227b70fd2a7ff196b3b0a6",
+    "teaVMVersion": "0.14.1",
+    "jdk": "25",
+    "binaryen": "133"
+  },
+  "artifacts": {
+    "compiler.wasm": "bad2b9856e263d185d09bb377daa85f25a09598da8b2854111e3db5358dc3dc8",
+    "compiler.wasm-runtime.js": "4709a64b0b979090bb14999720576d614f13127932109ea3c9638154c04887cc",
+    "compiler.wasm-deobfuscator.wasm": "aaa8c0b6fec394dbbf8a5f900a66824e554c7157cc9e8a402f37a4a7df144c73",
+    "compile-classlib-teavm.bin": "2148f03d1ff554c8114d434cb826d4c4abad9d898df82f9115daa6ac1be16dba",
+    "runtime-classlib-teavm.bin": "f677a5f6a2e9daa94a1438982737e7778777cf23ec93eca303e49aa9dee45a16"
+  },
+  "patches": [
+    {
+      "file": "StdlibConverter.java",
+      "target": "compiler/src/main/java/org/teavm/javac/StdlibConverter.java",
+      "kind": "fork-file",
+      "upstream": "https://raw.githubusercontent.com/Vsprocessing/teavm-javac/{commit}/{target}",
+      "marker": "RENAME_DESC",
+      "why": "six SDK-surface bugs: @Rename, InnerClasses, duplicated members, abstract default methods, self-extending Annotation, element-less annotations"
+    },
+    {
+      "file": "ArchiveBuilder.java",
+      "target": "compiler/src/main/java/org/teavm/javac/ArchiveBuilder.java",
+      "kind": "fork-file",
+      "upstream": "https://raw.githubusercontent.com/Vsprocessing/teavm-javac/{commit}/{target}",
+      "marker": "an archive built on Windows",
+      "why": "archive entry names used the platform separator; a Windows build produced archives TeaVM could not read"
+    },
+    {
+      "file": "CompilerResourceSupplier.java",
+      "target": "compiler/src/main/java/org/teavm/javac/CompilerResourceSupplier.java",
+      "kind": "fork-file",
+      "upstream": "https://raw.githubusercontent.com/Vsprocessing/teavm-javac/{commit}/{target}",
+      "marker": null,
+      "why": "application-class methods survive reflection; upstream keeps only fields"
+    },
+    {
+      "file": "DivisionCheckTransformer.java",
+      "target": "compiler/src/main/java/org/teavm/javac/DivisionCheckTransformer.java",
+      "kind": "new-source",
+      "upstream": null,
+      "marker": "class DivisionCheckTransformer",
+      "why": "new class: rewrites int/long division into a checked helper (wasmGC traps on divide-by-zero)"
+    },
+    {
+      "file": "ClassMetadataRequirements.java",
+      "target": "compiler/src/patches/java/org/teavm/model/analysis/ClassMetadataRequirements.java",
+      "kind": "core-shadow",
+      "upstream": null,
+      "marker": "Fork fix",
+      "why": "class names for every class, so Class.getName and Class.forName work for classes reached dynamically",
+      "upstreamFile": "patches/upstream/ClassMetadataRequirements.java"
+    },
+    {
+      "file": "WasmGCVirtualTableBuilder.java",
+      "target": "compiler/src/patches/java/org/teavm/backend/wasm/vtable/WasmGCVirtualTableBuilder.java",
+      "kind": "core-shadow",
+      "upstream": null,
+      "marker": null,
+      "why": "records inherited implementations as vtable implementors (isVirtual is keyed by the call site's written reference); also swaps one hppc map for a HashMap",
+      "upstreamFile": "patches/upstream/WasmGCVirtualTableBuilder.java"
+    },
+    {
+      "file": "BaseWasmGenerationVisitor.java",
+      "target": "compiler/src/patches/java/org/teavm/backend/wasm/generate/methods/BaseWasmGenerationVisitor.java",
+      "kind": "core-shadow",
+      "upstream": null,
+      "marker": "isUnconditionalExit",
+      "why": "stops emitting a statement sequence at a directly following return/throw (invalid wasm for try/finally with returns in both halves)",
+      "upstreamFile": "patches/upstream/BaseWasmGenerationVisitor.java"
+    },
+    {
+      "file": "InMemoryVirtualFileSystem.java",
+      "target": "compiler/src/runtimeClasslibEmu/java/org/teavm/runtime/fs/memory/InMemoryVirtualFileSystem.java",
+      "kind": "core-shadow",
+      "upstream": null,
+      "marker": "ensureRestored",
+      "why": "creates /tmp, reads the platform flag, and snapshots/restores the filesystem through the host",
+      "upstreamFile": "patches/upstream/InMemoryVirtualFileSystem.java"
+    },
+    {
+      "file": "VirtualFileImpl.java",
+      "target": "compiler/src/runtimeClasslibEmu/java/org/teavm/runtime/fs/memory/VirtualFileImpl.java",
+      "kind": "core-shadow",
+      "upstream": null,
+      "marker": "charAt(k)",
+      "why": "accepts backslash as a path separator, so Windows-style paths resolve",
+      "upstreamFile": "patches/upstream/VirtualFileImpl.java"
+    },
+    {
+      "file": "Division.java",
+      "target": "compiler/src/sharedClasslibEmu/java/org/teavm/classlib/impl/math/Division.java",
+      "kind": "new-classlib",
+      "upstream": null,
+      "marker": "class Division",
+      "why": "new class: division and remainder that throw ArithmeticException on a zero divisor"
+    },
+    {
+      "file": "TReader.java",
+      "target": "compiler/src/sharedClasslibEmu/java/org/teavm/classlib/java/io/TReader.java",
+      "kind": "classlib-vendor",
+      "upstream": "https://raw.githubusercontent.com/konsoletyper/teavm/{teaVMVersion}/classlib/src/main/java/org/teavm/classlib/java/io/TReader.java",
+      "marker": "transferTo",
+      "why": "the Java 10 transferTo(Writer); TFiles.readString/writeString/copy call it, so they did not compile",
+      "dropWhen": "upstream TReader declares transferTo"
+    },
+    {
+      "file": "TFiles.java",
+      "target": "compiler/src/sharedClasslibEmu/java/org/teavm/classlib/java/nio/file/TFiles.java",
+      "kind": "classlib-vendor",
+      "upstream": "https://raw.githubusercontent.com/konsoletyper/teavm/{teaVMVersion}/classlib/src/main/java/org/teavm/classlib/java/nio/file/TFiles.java",
+      "marker": "Fork fix",
+      "why": "createDirectories swallows FileAlreadyExistsException for a one-component path, as the JDK does",
+      "dropWhen": "upstream createDirectories is idempotent"
+    },
+    {
+      "file": "TString.java",
+      "target": "compiler/src/sharedClasslibEmu/java/org/teavm/classlib/java/lang/TString.java",
+      "kind": "classlib-vendor",
+      "upstream": "https://raw.githubusercontent.com/konsoletyper/teavm/{teaVMVersion}/classlib/src/main/java/org/teavm/classlib/java/lang/TString.java",
+      "marker": null,
+      "why": "String.lines()",
+      "dropWhen": "upstream TString declares lines()"
+    },
+    {
+      "file": "TMatcher.java",
+      "target": "compiler/src/sharedClasslibEmu/java/org/teavm/classlib/java/util/regex/TMatcher.java",
+      "kind": "classlib-vendor",
+      "upstream": "https://raw.githubusercontent.com/konsoletyper/teavm/{teaVMVersion}/classlib/src/main/java/org/teavm/classlib/java/util/regex/TMatcher.java",
+      "marker": null,
+      "why": "Matcher.results()",
+      "dropWhen": "upstream TMatcher declares results()"
+    },
+    {
+      "file": "TCharacter.java",
+      "target": "compiler/src/sharedClasslibEmu/java/org/teavm/classlib/java/lang/TCharacter.java",
+      "kind": "classlib-vendor",
+      "upstream": "https://raw.githubusercontent.com/konsoletyper/teavm/{teaVMVersion}/classlib/src/main/java/org/teavm/classlib/java/lang/TCharacter.java",
+      "marker": null,
+      "why": "Character.Subset and Character.UnicodeBlock appended (absent upstream); block table generated by scripts/gen-unicode-blocks.java",
+      "dropWhen": "upstream TCharacter has UnicodeBlock"
+    },
+    {
+      "file": "TThrowable.java",
+      "target": "compiler/src/sharedClasslibEmu/java/org/teavm/classlib/java/lang/TThrowable.java",
+      "kind": "classlib-vendor",
+      "upstream": "https://raw.githubusercontent.com/konsoletyper/teavm/{teaVMVersion}/classlib/src/main/java/org/teavm/classlib/java/lang/TThrowable.java",
+      "marker": null,
+      "why": "lazy, null-tolerant suppressed accessors (the field initializer never runs under TeaVM construction)",
+      "dropWhen": "upstream getSuppressed tolerates the null field"
+    },
+    {
+      "file": "TFormatter.java",
+      "target": "compiler/src/sharedClasslibEmu/java/org/teavm/classlib/java/util/TFormatter.java",
+      "kind": "classlib-vendor",
+      "upstream": "https://raw.githubusercontent.com/konsoletyper/teavm/{teaVMVersion}/classlib/src/main/java/org/teavm/classlib/java/util/TFormatter.java",
+      "marker": null,
+      "why": "the %e/%E and %n conversions",
+      "dropWhen": "upstream TFormatter handles e and n"
+    },
+    {
+      "file": "TDecimalFormatSymbols.java",
+      "target": "compiler/src/sharedClasslibEmu/java/org/teavm/classlib/java/text/TDecimalFormatSymbols.java",
+      "kind": "classlib-vendor",
+      "upstream": "https://raw.githubusercontent.com/konsoletyper/teavm/{teaVMVersion}/classlib/src/main/java/org/teavm/classlib/java/text/TDecimalFormatSymbols.java",
+      "marker": null,
+      "why": "explicit clone() — Object.clone() yields a vtable-less object under wasmGC",
+      "dropWhen": "Object.clone() produces a usable object under wasmGC"
+    },
+    {
+      "file": "Duration.java",
+      "target": "compiler/src/sharedClasslibEmu/java/org/threeten/bp/Duration.java",
+      "kind": "third-party",
+      "upstream": null,
+      "marker": "toSecondsPart",
+      "why": "the Java 9 toXxxPart() accessors added to the bundled ThreeTen backport (this is the package java.time is converted from)",
+      "dropWhen": "the bundled ThreeTen is upgraded to an API level that has them"
+    }
+  ],
+  "forkEdits": [
+    {
+      "file": "Compiler.java",
+      "target": "compiler/src/main/java/org/teavm/javac/Compiler.java",
+      "why": "registers DivisionCheckTransformer, reaches Object.toString/Enum.toString, and reaches every virtual call target (see patches/README.md)"
+    }
+  ]
+}

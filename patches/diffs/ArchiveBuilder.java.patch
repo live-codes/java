@@ -1,0 +1,18 @@
+diff --git a/a/ArchiveBuilder.java b/b/ArchiveBuilder.java
+index 187d714..93dc5ad 100644
+--- a/a/ArchiveBuilder.java
++++ b/b/ArchiveBuilder.java
+@@ -40,7 +40,12 @@ public class ArchiveBuilder implements Closeable {
+     }
+ 
+     public void append(String entryName, byte[] data) throws IOException {
+-        var name = entryName.getBytes(StandardCharsets.UTF_8);
++        // Class names are looked up with '/' separators, so an archive built on Windows — where
++        // Path.toString() yields 'org\teavm\...' — reads back as one containing no classes at all,
++        // and TeaVM then dereferences null while generating for any program. Normalising here, at
++        // the single point every entry passes through, makes a build produce the same archive on
++        // any platform: on Linux, where the separator already is '/', this is a no-op.
++        var name = entryName.replace('\\', '/').getBytes(StandardCharsets.UTF_8);
+         output.writeShort(name.length);
+         output.write(name);
+         output.writeInt(data.length);

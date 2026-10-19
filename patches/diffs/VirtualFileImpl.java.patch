@@ -1,0 +1,36 @@
+diff --git a/a/VirtualFileImpl.java b/b/VirtualFileImpl.java
+index 92b80b5..bd7ac29 100644
+--- a/a/VirtualFileImpl.java
++++ b/b/VirtualFileImpl.java
+@@ -30,7 +30,7 @@ public class VirtualFileImpl implements VirtualFile {
+ 
+     @Override
+     public String getName() {
+-        return path.substring(path.lastIndexOf('/') + 1);
++        return path.substring(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
+     }
+ 
+     @Override
+@@ -130,14 +130,18 @@ public class VirtualFileImpl implements VirtualFile {
+     AbstractInMemoryVirtualFile findInMemory() {
+         AbstractInMemoryVirtualFile file = fs.root;
+         int i = 0;
+-        if (path.startsWith("/")) {
++        if (path.startsWith("/") || path.startsWith("\\")) {
+             i++;
+         }
+ 
+         while (i < path.length()) {
+-            int next = path.indexOf('/', i);
+-            if (next < 0) {
+-                next = path.length();
++            int next = path.length();
++            for (int k = i; k < path.length(); ++k) {
++                char c = path.charAt(k);
++                if (c == '/' || c == '\\') {
++                    next = k;
++                    break;
++                }
+             }
+ 
+             if (!file.isDirectory()) {

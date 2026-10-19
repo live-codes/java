@@ -127,6 +127,12 @@ npm run serve          # http://localhost:8931/playground.html
 `playground.html` is a minimal editor + stdin + output page; `poc/smoke.html` exercises the built
 bundle directly.
 
+## Upgrading the toolchain
+
+Every pin — the fork commit, the build JDK, Binaryen, the artifact checksums — and every patch is
+recorded in [`patches/manifest.json`](patches/manifest.json). `node scripts/upgrade.mjs` checks the
+inventory (and `--diff` regenerates the per-file diffs); [`UPGRADING.md`](UPGRADING.md) is the runbook.
+
 ## Artifact provenance
 
 | Artifact | Source | Size |

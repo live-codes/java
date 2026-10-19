@@ -1,0 +1,38 @@
+diff --git a/a/BaseWasmGenerationVisitor.java b/b/BaseWasmGenerationVisitor.java
+index 8c31881..444b7a2 100644
+--- a/a/BaseWasmGenerationVisitor.java
++++ b/b/BaseWasmGenerationVisitor.java
+@@ -579,6 +579,9 @@ public abstract class BaseWasmGenerationVisitor implements StatementVisitor, Exp
+     public void visit(SequentialStatement statement) {
+         for (var part : statement.getSequence()) {
+             part.acceptVisitor(this);
++            if (isUnconditionalExit(part)) {
++                break;
++            }
+         }
+     }
+ 
+@@ -1329,10 +1332,23 @@ public abstract class BaseWasmGenerationVisitor implements StatementVisitor, Exp
+         resultConsumer = target;
+         for (var part : statements) {
+             accept(part);
++            if (isUnconditionalExit(part)) {
++                break;
++            }
+         }
+         resultConsumer = oldTarget;
+     }
+ 
++    /**
++     * Fork addition: a return or a throw, and nothing else. Used to drop statements the decompiler left
++     * after an unconditional exit -- emitting one of those leaves a value on the wasm stack, which the
++     * validator rejects. Deliberately not recursive: a statement that merely *contains* an exit still has
++     * to be followed by whatever the generator expects.
++     */
++    private static boolean isUnconditionalExit(Statement statement) {
++        return statement instanceof ReturnStatement || statement instanceof ThrowStatement;
++    }
++
+     @Override
+     public void visit(GotoPartStatement statement) {
+     }

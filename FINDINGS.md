@@ -254,7 +254,7 @@ usable (§5): pre-create `/tmp` in the virtual filesystem (so `createTempFile` w
 append, read, rename, copy, list, delete and the `java.io` streams all match the JDK, and the
 filesystem lives inside the module, and it is now **persisted**: the module hands a snapshot to the host
 at the end of a run and asks for it back on first use, so a program's files survive to the next run
-(`localStorage` in the browser, `TEAVM_FS_FILE` for the runner). The path semantics also have a switch
+(IndexedDB in the browser — localStorage does not exist in a Web Worker — and `TEAVM_FS_FILE` for the runner). The path semantics also have a switch
 — POSIX by default, Windows for `java.io.File` on request — though the nio layer stays POSIX, so that
 switch is partial. Details and the exact probes are in `patches/README.md`.
 

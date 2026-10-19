@@ -115,6 +115,63 @@ let fileOperationNextId = 0;
 const FILE_STORAGE_KEY = 'livecodes.java.files';
 let persistFiles = true;
 
+/**
+ * IndexedDB, not localStorage: this code runs in a Web Worker, where localStorage does not exist.
+ * The module asks for its file system synchronously, so the value is read once before a run starts and
+ * written back asynchronously afterwards.
+ */
+const FILE_DB_NAME = 'livecodes-java';
+const FILE_DB_STORE = 'files';
+
+function openFileDatabase(): Promise<IDBDatabase | null> {
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.open(FILE_DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(FILE_DB_STORE)) {
+          request.result.createObjectStore(FILE_DB_STORE);
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+let persistedFileSystem: string | null = null;
+
+async function loadPersistedFileSystem(): Promise<void> {
+  persistedFileSystem = null;
+  if (!persistFiles) return;
+  const db = await openFileDatabase();
+  if (!db) return;
+  try {
+    persistedFileSystem = await new Promise<string | null>((resolve) => {
+      const request = db.transaction(FILE_DB_STORE, 'readonly').objectStore(FILE_DB_STORE).get(FILE_STORAGE_KEY);
+      request.onsuccess = () => resolve(typeof request.result === 'string' ? request.result : null);
+      request.onerror = () => resolve(null);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+function savePersistedFileSystem(snapshot: string): void {
+  if (!persistFiles) return;
+  void openFileDatabase().then((db) => {
+    if (!db) return;
+    try {
+      db.transaction(FILE_DB_STORE, 'readwrite')
+        .objectStore(FILE_DB_STORE)
+        .put(snapshot, FILE_STORAGE_KEY);
+    } finally {
+      db.close();
+    }
+  });
+}
+
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
@@ -171,21 +228,11 @@ function completeFileOpen(requestId: number, resultId: number): void {
 function installFileImports(imports: Record<string, unknown>): void {
   const api: Record<string, unknown> = {};
 
-  api.loadFileSystem = () => {
-    if (!persistFiles) return null;
-    try {
-      return localStorage.getItem(FILE_STORAGE_KEY);
-    } catch {
-      return null;
-    }
-  };
+  api.loadFileSystem = () => persistedFileSystem;
   api.saveFileSystem = (snapshot: unknown) => {
-    if (!persistFiles) return;
-    try {
-      if (typeof snapshot === 'string') localStorage.setItem(FILE_STORAGE_KEY, snapshot);
-    } catch {
-      // quota or a blocked storage area: persistence is best effort, not a reason to fail the run
-    }
+    if (typeof snapshot !== 'string') return;
+    persistedFileSystem = snapshot;
+    savePersistedFileSystem(snapshot);
   };
 
   api.setActiveProgram = (program: unknown) => {
@@ -268,6 +315,7 @@ function installFileImports(imports: Record<string, unknown>): void {
  * pre-supplied string read one byte at a time through `teavmConsole.readStdin`.
  */
 async function executeProgram(wasm: Int8Array, input: string, platform: 'posix' | 'windows' = 'posix') {
+  await loadPersistedFileSystem();
   // The engine models a POSIX file system; a program that asks for Windows semantics gets the same
   // separators and the same `File.isAbsolute()` answers the JDK on Windows would give.
   (globalThis as Record<string, unknown>).__teavmWindowsPaths = platform === 'windows';

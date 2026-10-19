@@ -51,7 +51,7 @@ export interface CreateJavaRuntimeOptions {
   teavmBaseUrl?: string;
   /** Called with coarse engine progress. */
   onProgress?: (progress: JavaProgress) => void;
-  /** Keep the program's in-memory file system between runs (localStorage). Default: true. */
+  /** Keep the program's in-memory file system between runs (IndexedDB). Default: true. */
   persistFiles?: boolean;
   /**
    * Path semantics the module models. 'posix' (default) behaves like the browser and like Doppio did.

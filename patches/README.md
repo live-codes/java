@@ -369,12 +369,42 @@ marks a table "used" only when a call site's **declaring** class matches
 `WasmGCVirtualCallGenerator` reads the slot from the receiver's **static** type — different classes for
 an inherited method.
 
-**The fix, as implemented here.**
+**The fix, as implemented here.** Every method used at a *virtual* call site has to exist out of line,
+because the call may be compiled as a read of a vtable slot. So `Compiler.java` reaches the target of
+every virtual call in every reached method — reaching one can reach more, so the set settles — and the
+builder records implementors without asking `isVirtual` first:
 
 ```java
-// compiler/src/main/java/org/teavm/javac/Compiler.java, in linkWasmExceptionDecoration's started()
-agent.linkMethod(OBJECT_TO_STRING_METHOD).use();
-agent.linkMethod(ENUM_TO_STRING_METHOD).use();
+// compiler/src/main/java/org/teavm/javac/Compiler.java, in createTeaVM's WasmGC branch
+teavm.add(new AbstractDependencyListener() {
+    @Override
+    public void methodReached(DependencyAgent agent, MethodDependency method) {
+        var source = agent.getClassSource();
+        var ref = method.getReference();
+        var owner = source.get(ref.getClassName());
+        var reader = owner != null ? owner.getMethod(ref.getDescriptor()) : null;
+        var program = reader != null ? reader.getProgram() : null;
+        if (program == null) {
+            return;
+        }
+        for (var blockReader : program.getBasicBlocks()) {
+            if (!(blockReader instanceof BasicBlock block)) {
+                continue;
+            }
+            for (var instruction : block) {
+                if (!(instruction instanceof InvokeInstruction invoke)
+                        || invoke.getType() != InvocationType.VIRTUAL) {
+                    continue;
+                }
+                var target = invoke.getMethod();
+                var targetOwner = source.get(target.getClassName());
+                if (targetOwner != null && targetOwner.getMethod(target.getDescriptor()) != null) {
+                    agent.linkMethod(target).use();
+                }
+            }
+        }
+    }
+});
 ```
 
 ```java
@@ -389,14 +419,25 @@ inherited method names the receiver's static type (`Main$Level.toString`), never
 declares the implementation. (The same predicate still guards the *interface* path, where the reference
 does name the interface being implemented.)
 
-**Effect, measured.** `enum-map-set` matches JDK 25 byte for byte, and the enum probe prints `LOW`
-where it used to trap; the corpus goes 140/145 → **141/145** with nothing newly broken. The cost is
-that every overridable method of every class is recorded as an implementor — entries still come only
-from call sites and parents, so nothing extra is generated for a class that needs no slot.
+The listener covers call sites, and call sites do not cover everything: `((Level) k).toString()` names
+`Main$Level.toString`, a method that does not exist, so the *implementation* (`Enum.toString`) still
+needs reaching by hand, which is why `started()` also does
 
-**Not fixed by this:** the same fault for a method this patch does not name. `exceptions-stacktrace`
-and `exception-propagation` reach it through `java.lang.String.equals` in a stream lambda. A general
-fix belongs in the dependency analysis, not in a list of method names — `FINDINGS.md` §4b and
-`poc/UPSTREAM.md` §8 have the detail.
+```java
+// compiler/src/main/java/org/teavm/javac/Compiler.java, in linkWasmExceptionDecoration's started()
+agent.linkMethod(OBJECT_TO_STRING_METHOD).use();
+agent.linkMethod(ENUM_TO_STRING_METHOD).use();
+```
+
+**Effect, measured.** Three programs were failing on this: `enum-map-set` (the `toString` slot),
+`exceptions-stacktrace` and `exception-propagation` (the `String.equals` slot inside a stream lambda).
+All three now match JDK 25 byte for byte, and the corpus goes 140/145 → **143/145** with nothing newly
+broken. Modules grow — the three are 10–20 KB larger than before, which is the code that *should* have
+been linked — since reaching a call site's target also pulls in the body it needs.
+
+**Detail worth keeping.** The builder's `getFirstUsed()` gate and the generator's choice of structure
+also disagree for an inherited method (the builder keys on the call site's *declaring* class, the
+generator on the receiver's *static* type), which is why this failure is shape-dependent and moves with
+unrelated edits.
 
 This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above).

@@ -37,29 +37,29 @@ Measured on `corpus/` (145 programs), last full run:
 
 | | |
 |---|---|
-| Pass | **141 / 145** |
+| Pass | **143 / 145** |
 | Compile | **145 / 145** |
-| Regressions (work on Doppio, fail here) | **4** |
+| Regressions (work on Doppio, fail here) | **2** |
 | Fails on both engines | **0** |
 
-Failing programs (4): `exceptions-finally`, `exceptions-stacktrace`, `exception-propagation`,
-`file-io`.
+Failing programs (2): `exceptions-finally`, `file-io`.
 
-Where each cluster lives is in `FINDINGS.md` §4. The short version:
+Where each lives is in `FINDINGS.md` §4. The short version:
 
-- **All 4 remaining failures are regressions**, and the corpus compiles **145/145**.
-- **No class-library work is left.** Every remaining failure is **code generation** (3) or
-  **deliberate** (1: `file-io`), and the three are **two** faults: `finally { return }` emitting invalid
-  wasm, and the general form of the dropped-implementation vtable fault (§6).
-- Those are backend work, which needs a `compiler.wasm` rebuild. **The rebuild is proven** (§6A), so
-  the loop is: patch, ~5–8 min, corpus. Four faults that *looked* like backend work were fixed in Java
-  instead (§4b: `clone()` in the class library, division by a `ClassHolderTransformer`, class-name
-  metadata and the `toString` vtable slots by core patches) — try that shape first, it keeps working.
+- **Both remaining failures are regressions**, and the corpus compiles **145/145**.
+- **No class-library work is left.** One failure is **code generation** (`exceptions-finally`,
+  `try { return } finally { return }` emitting invalid wasm) and one is **deliberate** (`file-io`: there
+  is no filesystem in a browser).
+- The codegen fault needs a `compiler.wasm` rebuild, and **the rebuild is proven** (§6A) — the loop is:
+  patch, ~6 min, corpus. Five faults that *looked* like backend work were fixed in Java instead
+  (§4b: `clone()` in the class library, division by a `ClassHolderTransformer`, class-name metadata,
+  the `toString` vtable slots and the general vtable-slot fault by core patches) — try that shape
+  first, it keeps working.
 
-Git: `D:\DevWork\live-codes\java` is **clean** at the tip of `main` (fourteen commits this session: the
+Git: `D:\DevWork\live-codes\java` is **clean** at the tip of `main` (sixteen commits this session: the
 float cluster, exceptions/stack-trace, `char-classes`, the committed artifacts, `instant-duration`, the
 Docker build recipe, the reflection compiler patch, the UPSTREAM refresh, the division fix, the
-class-name metadata fix, and the vtable fix).
+class-name metadata fix, and the two vtable fixes).
 
 ---
 
@@ -100,6 +100,7 @@ Worker protocol (do not break it; the LiveCodes wiring depends on this shape):
 
 | Commit | What |
 |---|---|
+| the listener commit | **The general vtable fix.** Same fault as the one above, one instance further on: `exceptions-stacktrace` and `exception-propagation` read a slot whose implementation (`java.lang.String.equals`) had been dropped, because a call site names the *receiver's* type. `Compiler.java` now reaches the target of every virtual call in every reached method — a method a call site names must exist out of line, since the call may read a vtable slot — which settles as it cascades. Both match JDK 25; the corpus is at 143/145 |
 | the vtable commit | **The dropped-implementation vtable fault.** A virtual call to an *inherited* method read a slot that was never written: TeaVM records a slot's implementor only for a *reachable* method, and `Object.toString`/`Enum.toString` are never called out of line (call sites are devirtualised or intrinsified), so the dependency analysis drops them. `patches/WasmGCVirtualTableBuilder.java` (a core shadow) drops the `isVirtual` filter — keyed by the call site's *written* reference, i.e. the receiver's static type — and the fork's `Compiler.java` reaches those two implementations explicitly. `enum-map-set` now matches JDK 25; the general form of the fault is what still breaks the two stack-trace programs |
 | the metadata commit | **Class names, and `Class.forName`.** Whether a class carries its name in the generated `ClassInfo` was decided per class from the statically known `Class` values reaching `Class.getName()`, so `getClass().getName()` returned `null` and `Class.forName` could only resolve a class some other line had already asked the name of. `patches/ClassMetadataRequirements.java` — a **TeaVM core** class shadowed through `compiler/src/patches/java` — makes `getName`/`forName` mean *every* class gets its name. `reflection` now matches JDK 25 byte for byte |
 | the division commit | **Integer division by zero.** The WasmGC backend emits `div_s`/`rem_s` with no check, so `10 / 0` trapped instead of throwing `ArithmeticException`. `DivisionCheckTransformer` (a `ClassHolderTransformer` registered for `WasmGCTarget`) rewrites int/long `DIVIDE`/`MODULO` into calls to a new class-library `Division` helper that checks the divisor and special-cases `MIN_VALUE / -1`. `exceptions` now matches JDK 25; verified with a 52-case differential probe |
@@ -111,9 +112,10 @@ Worker protocol (do not break it; the LiveCodes wiring depends on this shape):
 | the exceptions commit | `TThrowable.suppressed` is never initialised → vendor it with lazy accessors; and enable the **stack deobfuscator** in the worker, vendoring `compiler.wasm-deobfuscator.wasm`, so `getStackTrace()` returns real frames |
 | `e1a9c29` | **The float cluster.** Found that `DecimalFormatSymbols.clone()` returns a vtable-less object under this WasmGC backend, vendored `TDecimalFormatSymbols` with an explicit copy, and vendored `TFormatter` with the missing `%e`/`%E` and `%n` conversions. Added `scripts/run-program.mjs` |
 
-Net: **130/145 → 141/145**, **14 → 4 regressions**, **compile 143/145 → 145/145**, nothing newly broken.
+Net: **130/145 → 143/145**, **14 → 2 regressions**, **compile 143/145 → 145/145**, nothing newly broken.
 Closed `stringformat`, `parse-format`, `string-format-more`, `io-writers`, `exceptions-suppressed`,
-`char-classes`, `instant-duration`, `reflection-members`, `exceptions`, `reflection`, `enum-map-set`.
+`char-classes`, `instant-duration`, `reflection-members`, `exceptions`, `reflection`, `enum-map-set`,
+`exceptions-stacktrace`, `exception-propagation`.
 
 The single most valuable thing added is `scripts/run-program.mjs` — see §6. It gives named Java stack
 traces for a wasm trap, which is what actually cracked both clusters after several wrong attributions
@@ -152,10 +154,11 @@ archives:
 - `compiler/src/patches/java/org/teavm/backend/wasm/vtable/WasmGCVirtualTableBuilder.java` — copy of
   `patches/WasmGCVirtualTableBuilder.java`, also **TeaVM core**. Its `isVirtual` filter is removed, and
   its one `com.carrotsearch.hppc` map is swapped for a `HashMap` (the compiler module has no hppc)
-- `compiler/src/main/java/org/teavm/javac/Compiler.java` — the fork's own file; the whole change is two
-  `agent.linkMethod(…).use()` calls in `linkWasmExceptionDecoration`'s `started()`, plus the two
-  `MethodReference` constants next to `STRING_TO_JS_METHOD`. Those reach `Object.toString` and
-  `Enum.toString`, which is the other half of the vtable fix
+- `compiler/src/main/java/org/teavm/javac/Compiler.java` — the fork's own file; two separate changes:
+  (a) in `linkWasmExceptionDecoration`'s `started()`, two `agent.linkMethod(…).use()` calls reaching
+  `Object.toString` and `Enum.toString`, plus the two `MethodReference` constants next to
+  `STRING_TO_JS_METHOD`; (b) in `createTeaVM`'s WasmGC branch, a `DependencyListener` that reaches the
+  target of every virtual call in every reached method. Both are quoted in full in `patches/README.md`
 - `compiler/build.gradle` — the include list in `prepareTeaVMClassLib` (one line per vendored class)
 - `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...` — the vendored classes:
   `java/lang/TString` (`lines()`), `java/util/regex/TMatcher` (`results()`),
@@ -232,27 +235,30 @@ cd /path/to/teavm-javac
 docker build -f patches/Dockerfile -t teavm-javac-build .
 tar -czf ../src.tgz --exclude=./compiler/build --exclude=./javac/build \
     --exclude=./protocol/build --exclude=./.gradle --exclude=./dist .
-docker run -d --name teavm-build -v "$PWD/../src.tgz:/tmp/src.tgz:ro" -v teavm-gradle:/root/.gradle \
-    teavm-javac-build bash -c "tar -xzf /tmp/src.tgz -C /work; cd /work && bash ./gradlew \
-    :compiler:generateClassLib :compiler:buildTeaVMClassLib :compiler:optimizeWasmGC --console=plain --no-daemon"
+docker run -d --name teavm-build -v teavm-gradle:/root/.gradle teavm-javac-build tail -f /dev/null
+docker cp ../src.tgz teavm-build:/tmp/src.tgz
+docker exec -d teavm-build bash -c "tar -xzf /tmp/src.tgz -C /work && cd /work && bash ./gradlew \
+    :compiler:generateClassLib :compiler:buildTeaVMClassLib :compiler:optimizeWasmGC --console=plain --no-daemon \
+    > /tmp/build.log 2>&1; echo done > /tmp/done"
+docker exec teavm-build bash -c "tail -3 /tmp/build.log"
+docker cp teavm-build:/work/compiler/build/generated/teavm/wasm-gc-optimized/compiler.wasm .
 ```
 
 That one command does everything — both class-library archives **and** the compiler — which is what a
 change to either needs (the archives are built on Linux, so no `ArchiveBuilder` separator worry).
-Measured: 8m53s cold, 4m30s when the Gradle cache is warm. It reproduces `compiler.wasm-runtime.js`
-**bit-for-bit**; a rebuilt `compiler.wasm` is **not** byte-identical to the pinned one (different
-`wasm-opt`), so run the corpus before swapping it — that is how both fixes this session were landed.
+Measured: 8m53s cold, 4m30s when the Gradle cache is warm, 5m53s for a source-only change.
 
-Three practical notes: build **inside** the container (a Windows bind mount makes Gradle's hashing
-pathologically slow — copy the source in as the tar above does); `gradlew` from a Windows checkout has
-CRLF line endings; and **reuse the container** rather than creating a new one — it keeps the downloaded
-build JDK, so the second build of a session skips the ~5 min download:
+Four practical notes, the third of which cost real time:
 
-```bash
-tar -czf ../src.tgz …                       # re-tar after editing sources
-docker start teavm-build && sleep 240       # it re-runs its own command with the new tar
-docker cp teavm-build:/work/compiler/build/generated/teavm/wasm-gc-optimized/compiler.wasm ./
-```
+- Build **inside** the container: a Windows bind mount makes Gradle's hashing pathologically slow.
+- `gradlew` from a Windows checkout has CRLF line endings.
+- **Copy the sources in with `docker cp`, never a `-v …src.tgz:/tmp/src.tgz` bind.** Docker resolves a
+  *file* bind to the inode that existed when the container was created, so rewriting the tar on the
+  host and restarting the container silently rebuilds the *old* sources — which looks exactly like a
+  patch that had no effect. `docker cp` + `docker exec` always reads the file you just wrote.
+- Keep the container (`tail -f /dev/null`) instead of letting it exit with its command: it holds the
+  downloaded build JDK, so the second build of a session skips a ~5 minute download, and a build cannot
+  be killed by the container stopping.
 
 ### The verification ladder — use the cheapest rung that answers the question
 
@@ -308,7 +314,6 @@ The faults, each with a measured diagnosis:
 | Program(s) | Fault |
 |---|---|
 | `exceptions-finally` | `try { return x; } finally { return y; }` emits invalid wasm (`expected 1 elements on the stack for fallthru`) |
-| `exceptions-stacktrace`, `exception-propagation` | the *general* form of the vtable fault fixed for `enum-map-set`: the call site reads a slot from the receiver's static type, and the implementation behind it was dropped because nothing calls it out of line — here `java.lang.String.equals` inside a stream lambda. The frame data is fine (every `getMethodName()` is non-null). A real fix makes every vtable entry's *most derived* implementation reachable, in the dependency analysis or the builder — naming more methods in `Compiler.java` only moves the boundary |
 
 `Object.clone()` (`FINDINGS.md` §4b) is worth fixing first: it is the reason
 `TDecimalFormatSymbols.clone()` is vendored, and a real fix would let that class be deleted — the
@@ -461,15 +466,12 @@ rewritten in minutes.
 
 ## 11. Remaining work, ranked
 
-1. **Decide the branch in §6** — fix the remaining codegen (needs a compiler rebuild, now proven) or
+1. **Decide the branch in §6** — fix the last codegen fault (needs a compiler rebuild, now proven) or
    wire LiveCodes. There is nothing else actionable: no class library is missing an API.
-2. **Codegen** — 3 regressions, and really **two** faults: `exceptions-finally` (invalid wasm), and the
-   general form of the dropped-implementation vtable fault behind both `StackTraceElement` programs.
-   Measured diagnoses in `FINDINGS.md` §4b and the table in §6 above. Four faults that looked like
-   backend work turned out to be fixable in Java: `clone()` (a per-class field copy), division (a
-   `ClassHolderTransformer` + a class-library helper), class names and the `toString` vtable slots (core
-   patches through `compiler/src/patches/java`). `Object.clone()` is still worth fixing at the source:
-   it is the only reason `TDecimalFormatSymbols.clone()` is vendored.
+2. **Codegen** — 1 regression, `exceptions-finally`: `try { return } finally { return }` emits invalid
+   wasm. `run-program.mjs --emit` + `wasm-dis` will show the malformed function (V8's validator names
+   it), and the fix belongs in TeaVM's exception-table lowering — the fork can shadow the responsible
+   generator class through `compiler/src/patches/java`, as it now does for two others.
 3. **`file-io`** — deliberate; there is no filesystem model in a browser. Do not "fix" it.
 4. **Publishing** `@live-codes/java-wasm` (version `0.0.1`, unpublished) — decide the SDK-patch
    strategy first: we ship build outputs plus vendored classlib classes, not a rewritten third-party
@@ -492,6 +494,8 @@ node scripts/run-program.mjs exceptions --jdk       # expect MATCH (division sem
 node scripts/run-program.mjs reflection-members --jdk # expect MATCH (method reflection)
 node scripts/run-program.mjs reflection --jdk        # expect MATCH (class names + Class.forName)
 node scripts/run-program.mjs enum-map-set --jdk      # expect MATCH (vtable slots)
+node scripts/run-program.mjs exceptions-stacktrace --jdk # expect MATCH (the general vtable fix)
+node scripts/run-program.mjs exception-propagation --jdk # expect MATCH
 ```
 
 For the codegen faults, `--emit` + `wasm-dis` is the loop that worked:

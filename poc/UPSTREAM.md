@@ -330,33 +330,29 @@ method those are different classes, so the two halves disagree. That is why the 
 shape-dependent and moves with unrelated edits: a statically typed use of the class elsewhere can mark
 the table used, and the same call then works.
 
-**Fixed for the `toString` cases** by reaching those implementations explicitly, so the vtable has
-something to point at, and by not requiring `isVirtual` when recording implementors:
+**Fixed for this package** by reaching every virtual call target, so the vtable has something to point
+at, and by not requiring `isVirtual` when recording implementors. `Compiler.java` walks each reached
+method for virtual calls and reaches their targets — a method a call site names must exist out of line,
+since that call may read a slot — and also reaches `Object.toString` and `Enum.toString`, which *no*
+call site names because the reference at those sites is the subclass's (`Main$Level.toString`):
 
 ```java
-// compiler/src/main/java/org/teavm/javac/Compiler.java, in linkWasmExceptionDecoration's started()
+// compiler/src/main/java/org/teavm/javac/Compiler.java — on every reached method: reach the target of
+// every virtual call, and (because no call site names them) these two inherited implementations
+for (every InvokeInstruction with InvocationType.VIRTUAL in the method's program) {
+    agent.linkMethod(invoke.getMethod()).use();
+}
 agent.linkMethod(OBJECT_TO_STRING_METHOD).use();
 agent.linkMethod(ENUM_TO_STRING_METHOD).use();
 ```
 
 ```java
-// WasmGCVirtualTableBuilder.fillTable: the isVirtual filter on class implementors is removed
+// WasmGCVirtualTableBuilder.fillTable: drop this when recording a class's implementors
 if (!isVirtual.test(method.getReference()) && !method.getReference().equals(CLONE_METHOD)) {
     continue;
 }
 ```
 
-**Not fixed by that:** the same fault for a method this package does not name. `exceptions-stacktrace`
-and `exception-propagation` hit it with `java.lang.String.equals`, which is *final* and so is usually
-devirtualised — but not in a stream lambda, where the generated code calls it through
-`$VT<java.lang.String> $equals` and that slot is absent from the vt that is written:
-
-```java
-System.out.println(Arrays.stream(frames).anyMatch(x -> x.getMethodName().equals("main")));
-// RuntimeError: dereferencing a null pointer, in the lambda
-```
-
-The frame names themselves are fine (a loop printing every `getMethodName()` shows `main`, `runMain`, …,
-all non-null), so the trap is the slot, not the data. A general fix has to make the *most derived*
-implementation of every vtable entry reachable — not a fixed list of method names — which belongs in
-the dependency analysis or in the vtable builder, not in a patch that names two methods.
+**Effect.** The three programs this fault broke — `enum-map-set`, `exceptions-stacktrace`,
+`exception-propagation` — all match JDK 25 byte for byte now. Modules grow by 10–20 KB each, which is
+the code that should have been linked in the first place. `patches/README.md` has the full listener.

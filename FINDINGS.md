@@ -26,9 +26,9 @@ Measured on `corpus/` (145 programs, run in Chrome):
 
 | | |
 |---|---|
-| Pass | **141 / 145** |
+| Pass | **143 / 145** |
 | Compile | **145 / 145** |
-| "Works on Doppio, fails here" (regressions) | **4** |
+| "Works on Doppio, fails here" (regressions) | **2** |
 | "Fails on both engines" | **0** |
 
 Measured on a full run. Every program compiles, and **every remaining failure is a regression** —
@@ -38,13 +38,13 @@ Every class-library addition below (`String.lines()`, `Matcher.results()`, the `
 conversions, the `DecimalFormatSymbols` clone, the `suppressed` field, `Character.UnicodeBlock`,
 `Duration.toXxxPart()`, the division helper) and all four compiler patches
 (`CompilerResourceSupplier`, `ClassMetadataRequirements`, `DivisionCheckTransformer`,
-`WasmGCVirtualTableBuilder` + the `Compiler` hunk) are separately
+`WasmGCVirtualTableBuilder` + the `Compiler` listener) are separately
 confirmed by running the affected programs and diffing the output against JDK 25 — `regex-groups`,
 `var-textblock`, `text-block-more`, `stringformat`, `parse-format`, `string-format-more`, `io-writers`,
 `exceptions-suppressed`, `char-classes`, `instant-duration`, `reflection-members`, `reflection`,
-`exceptions` and `enum-map-set` all pass.
+`exceptions`, `enum-map-set`, `exceptions-stacktrace` and `exception-propagation` all pass.
 
-The headline is the regression count, not the pass count: 4 of the 145 work today on the current
+The headline is the regression count, not the pass count: 2 of the 145 work today on the current
 engine and do not work here. That is the number that decides whether this can replace Doppio, and it
 is why this is not yet a straight swap.
 
@@ -218,19 +218,16 @@ Java; the rest need the wasm backend itself.
   `WasmGCVirtualCallGenerator` takes the structure from the receiver's **static** type. It is
   shape-dependent, which is why it moves when unrelated code is added or removed: a nearby
   statically-typed use of the class can mark the table used and make the same call work.
-  **Both halves are now fixed** (§5): `getClass().getName()` returning `null` by the
-  `ClassMetadataRequirements` patch, and the null slot by reaching `Object.toString`/`Enum.toString`
-  explicitly plus dropping the `isVirtual` filter in `WasmGCVirtualTableBuilder` — `enum-map-set`
-  matches JDK 25 and the corpus is at 141/145. The *general* form of the fault is not fixed: the same
-  thing happens to any method whose implementation nothing calls out of line, which is how
-  `exceptions-stacktrace` and `exception-propagation` still fail (through `java.lang.String.equals` in
-  a stream lambda). A general fix belongs in the dependency analysis or in the vtable builder, not in
-  a list of method names.
+  **Both halves are fixed** (§5): `getClass().getName()` returning `null` by the
+  `ClassMetadataRequirements` patch, and the null slot by reaching the target of every virtual call in
+  every reached method (plus `Object.toString`/`Enum.toString`, which no call site names) and by
+  dropping the `isVirtual` filter in `WasmGCVirtualTableBuilder` — `enum-map-set`, `exceptions-stacktrace`
+  and `exception-propagation` all match JDK 25 and the corpus is at 143/145.
 
 Touching the backend itself means rebuilding `compiler.wasm` — which now **works**, reproducibly, in
-~5–9 minutes (§6). `clone()` is worked around per class in the class library, division, class names and
-the `toString` vtable slots are fixed by compiler patches (§5); what remains is `exceptions-finally`
-and the general form of the dropped-implementation fault.
+~5–9 minutes (§6). `clone()` is worked around per class in the class library, and division, class names
+and the vtable slots are fixed by compiler patches (§5); what remains is `exceptions-finally`, the
+invalid-wasm fault in §4b.
 
 ### 4c. Runtime class library — fixable here, one class at a time
 
@@ -298,9 +295,11 @@ class-library classes.
    its one hppc map swapped for a `HashMap`, since the compiler module has no hppc on its classpath).
    The `isVirtual` filter is dropped when recording a class's implementors: that predicate is keyed by
    the method reference *as written at the call site*, so an inherited implementation
-   (`Object.toString` reached through `Main$Level.toString`) was never recorded — see §4b. It is half
-   of the fix: the fork's `Compiler.java` also reaches `Object.toString` and `Enum.toString`
-   explicitly, because a method nothing calls out of line has no body left to point a vtable slot at.
+   (`Object.toString` reached through `Main$Level.toString`) was never recorded — see §4b. The fork's
+   `Compiler.java` supplies the other half: a `DependencyListener` that reaches the target of every
+   *virtual* call in every reached method (a method a call site names must exist out of line, because
+   the call may read a vtable slot), plus `Object.toString`/`Enum.toString`, which no call site names
+   because the reference at those sites is the subclass's.
 7. **Vendored class-library classes**, in `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...`
    and each listed by name in `prepareTeaVMClassLib`'s include list:
 
@@ -539,20 +538,19 @@ deobfuscator (§2/§5). That is not a cosmetic change — before it, every frame
 `DivisionCheckTransformer` (§4b/§5). `exceptions-finally` remains: the `finally { return }` wasm, which
 is backend work.
 
-The stream-lambda trap in the last two is the same class of fault as `enum-map-set` (§4b), one instance
-further on: `java.lang.String.equals` is dispatched through a vtable slot whose implementation was
-dropped, because nothing calls it out of line and the call sites that do name the *receiver's* type.
-The `toString` half is fixed; this half needs the general fix (make every entry's most derived
-implementation reachable) rather than another forced method.
+The stream-lambda trap in the last two was the same class of fault as `enum-map-set` (§4b), one
+instance further on: `java.lang.String.equals` was dispatched through a vtable slot whose
+implementation had been dropped, because nothing called it out of line and the call sites that did
+named the *receiver's* type. Both are **fixed** by reaching every virtual call target, which is the
+general form of the fix rather than another forced method.
 
 ### Next steps, ranked
 
 | Item | What it takes |
 |---|---|
-| `exceptions-stacktrace`, `exception-propagation` | one **codegen** fault, and the general form of the one `enum-map-set` had (§4b): a virtual call reads a slot from the receiver's static type's vtable, and the implementation behind that slot was dropped by the dependency analysis because nothing calls it out of line — here `java.lang.String.equals` inside a stream lambda. The frame data is fine (every `getMethodName()` is non-null). A real fix makes every vtable entry's *most derived* implementation reachable, in the analysis or the builder; naming more methods in `Compiler.java` would only move the boundary |
-| `exceptions-finally` | codegen: `try { return } finally { return }` emits invalid wasm. Backend work, or an upstream fix |
+| `exceptions-finally` | codegen: `try { return } finally { return }` emits invalid wasm — the last code-generation fault left. Backend work, or an upstream fix |
 
-Both remaining faults are in code generation rather than the class library, so neither needs bisecting
+One fault remains, and it is in code generation rather than the class library, so it needs no bisecting
 first: `run-program.mjs --trace` names the trapping frame, `--emit` writes the module, and
 `wasm-dis` (`binaryen-version_133/bin/wasm-dis.exe`) turns it into readable wat with Java names.
 
@@ -563,10 +561,10 @@ The float cluster (`stringformat`, `parse-format`, `string-format-more` — one 
 (`Character.UnicodeBlock`, generated from the JDK), `instant-duration` (`Duration.toXxxPart()`, which
 also took the compile count to **145/145**), `reflection-members` (the `CompilerResourceSupplier`
 patch), `exceptions` (`DivisionCheckTransformer` + the `Division` helper), `reflection` (the
-`ClassMetadataRequirements` patch: its last line, `Class.forName`, now resolves), and `enum-map-set`
-(the vtable fix: `WasmGCVirtualTableBuilder` plus reaching `Object.toString`/`Enum.toString` in
-`Compiler.java`). Each was verified by diffing the program's output against JDK 25, not just by the
-corpus going green.
+`ClassMetadataRequirements` patch: its last line, `Class.forName`, now resolves), `enum-map-set`,
+`exceptions-stacktrace` and `exception-propagation` (the vtable fix: `WasmGCVirtualTableBuilder` plus
+the `Compiler` listener that reaches every virtual call target and `Object.toString`/`Enum.toString`).
+Each was verified by diffing the program's output against JDK 25, not just by the corpus going green.
 
 ### Beyond the class library
 

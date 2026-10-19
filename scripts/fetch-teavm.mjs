@@ -26,7 +26,7 @@ const TEAVM_VERSION = '0.14.1';
 
 // sha256 of each artifact as committed in assets/.
 const ARTIFACTS = {
-  'compiler.wasm': '96cc98b5c6d312690aded83039498ab24b784c94c9a34b1e2eb874bd27b2ba36',
+  'compiler.wasm': 'cd8657743f7b54a96e4caeb4423c45c85cdde850dc425052a3d368d021e1fcbf',
   'compiler.wasm-runtime.js': '4709a64b0b979090bb14999720576d614f13127932109ea3c9638154c04887cc',
   // Generic stack-trace deobfuscator. It reads the debug info a generated module carries *embedded*
   // (the fork always emits it — `WasmDebugInfoLocation.EMBEDDED` in Compiler.java), so the same 40 KB

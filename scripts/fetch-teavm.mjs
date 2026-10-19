@@ -37,10 +37,10 @@ const ARTIFACTS = {
   // The javac SDK: StdlibConverter fixes six bugs that otherwise leak TeaVM internals into the API
   // javac reads (`@Rename`d members, InnerClasses, duplicated members, abstract `default`s,
   // self-extending `Annotation`, element-less annotations). patches/StdlibConverter.java.
-  'compile-classlib-teavm.bin': '4aa3e10d5e96f966e9de7b65c700a4181ab3ca6195d41fd916305072611462d1',
+  'compile-classlib-teavm.bin': '2148f03d1ff554c8114d434cb826d4c4abad9d898df82f9115daa6ac1be16dba',
   // The runtime class library, which additionally carries the vendored classlib classes
   // (`String.lines()`, `Matcher.results()`, …) and the ArchiveBuilder separator fix.
-  'runtime-classlib-teavm.bin': '389ce53730817d40e90c812b57ce863ae65f5a21d55a0431e4a50696db5741b7',
+  'runtime-classlib-teavm.bin': 'd5d92ff8235d943f5fd1f83d4f5951ccecdf6677f74d48f50640815c3adae4b3',
 };
 
 const assetsDir = join(fileURLToPath(new URL('..', import.meta.url)), 'assets');

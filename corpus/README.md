@@ -32,11 +32,11 @@ Raw results land in `corpus/results.json` (`results-only.json` for a filtered ru
 Programs must print deterministic output — sort maps and sets before printing, or the two engines
 differ for reasons that have nothing to do with correctness.
 
-## Result: 144/145 pass, and the one failure is deliberate
+## Result: 145/145 pass, with no regressions left
 
-java-wasm runs 144 of 145. Every program but one produces the JDK's output byte for byte; the
-exception is `file-io`, which is dropped on purpose because a browser has no filesystem. Every
-regression the corpus found — all 16 — is closed except that deliberate one, a 0.7% rate.
+java-wasm runs every program in the corpus, and each one produces the same output as the current
+engine. All 16 regressions the corpus found are closed — including file I/O, which works against an
+in-memory filesystem inside the module (see `FINDINGS.md` §4c).
 
 Recent closures. `stringformat`, `parse-format` and `string-format-more` were one bug: every
 `DecimalFormat` clones its `DecimalFormatSymbols`, and `Object.clone()` produces an object with no
@@ -67,7 +67,7 @@ Timings for the whole set: init 0.3–2 s, javac 1–13 s, **wasm generation 51�
 The spread is run-to-run variance on one machine (load-dependent), not a spread across programs;
 generation dominates either way.
 
-### Regressions — work on Doppio, fail on java-wasm (16 found, 1 remains, deliberate)
+### Regressions — work on Doppio, fail on java-wasm (16 found, 0 remain)
 
 | # | Programs | Failure | Cause |
 |---|---|---|---|
@@ -82,7 +82,7 @@ generation dominates either way.
 | 9 | ~~`recursive-generics`~~ — fixed | — | had crashed the compiler: the class library's `TSuppressWarnings` is a method-less stub shadowing the JDK's declaration, so javac had no `value` element to bind and threw a raw JS `TypeError`. Fixed by bug 6 of the SDK patch (`patches/README.md`); see `poc/UPSTREAM.md` |
 | 10 | ~~`enum-map-set`~~ — fixed | — | a *virtual* call to an inherited method read a vtable slot that was never written: TeaVM records a slot's implementor only for a method that is *reachable*, and `Object.toString`/`Enum.toString` are never called out of line (call sites are devirtualised or intrinsified), so the analysis dropped them. Fixed by a core patch to the vtable builder plus reaching those two implementations in the compiler (`FINDINGS.md` §4b / `poc/UPSTREAM.md` §8). The *general* form of the fault is what the two `StackTraceElement` programs still hit |
 | 11 | ~~`interface-diamond`~~ — fixed | — | passes now (and in five repeat runs), printing `B/C`. The link to the SDK change is *not* established — the archive's bytes changed and TeaVM's generation is not visibly deterministic — so this is unexplained rather than a known fix |
-| 12 | `file-io` | `Directory does not exist` | no filesystem model (deliberately dropped) |
+| 12 | ~~`file-io`~~ — fixed | — | TeaVM does ship a full `java.nio.file` implementation over an in-memory filesystem; it started empty, so `createTempFile` failed with `Directory does not exist`. Fixed by pre-creating `/tmp` in the virtual filesystem, adding the Java 10 `Reader.transferTo` (TeaVM's own `Files.readString`/`writeString` call it, so they did not compile) and making `createDirectories` idempotent. Create/write/append/read/rename/copy/list/delete all match; the filesystem is per run |
 
 Every failure above was triaged at compile time, without a browser: `scripts/compile-program.mjs --all`
 compiles all 145 programs with the fork's javac in Node and reports **145 compile, 0 do not**. So every
@@ -113,6 +113,7 @@ wrong: `interfaces` throws `NullPointerException` where java-wasm prints the rig
 
 ## Caveat
 
-145 hand-written programs still only sample the API, and they were written to probe gaps, so 0.7%
-is not a prediction of the real-world rate. It is measured rather than inferred — and the single
-remaining failure is file I/O, which is dropped on purpose.
+145 hand-written programs still only sample the API, and they were written to probe gaps, so a 100%
+pass rate is not a prediction of the real-world rate. It is measured rather than inferred — and the
+gaps this round found (a missing Java 10 `Reader.transferTo`, `createDirectories` not being
+idempotent) are the kind that only show up when a program actually uses the newer API.

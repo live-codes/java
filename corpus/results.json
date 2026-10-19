@@ -1,7 +1,7 @@
 {
   "teavm": {
     "engine": "java-wasm",
-    "initMs": 368,
+    "initMs": 843,
     "results": [
       {
         "id": "hello",
@@ -10,10 +10,10 @@
         "stdout": "Hello, world\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 738,
-        "compileMs": 62,
-        "generateMs": 655,
-        "runMs": 0
+        "wallMs": 2991,
+        "compileMs": 196,
+        "generateMs": 2760,
+        "runMs": 1
       },
       {
         "id": "primitives",
@@ -22,10 +22,10 @@
         "stdout": "overflow=-2147483648\nlong=9007199254740993\ndouble=0.3333333333333333\nchar=65 cast=44\nbool=true not=false\nshift=-2147483648 -4 2147483644\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 472,
-        "compileMs": 20,
-        "generateMs": 442,
-        "runMs": 1
+        "wallMs": 2372,
+        "compileMs": 86,
+        "generateMs": 2238,
+        "runMs": 5
       },
       {
         "id": "strings",
@@ -34,10 +34,10 @@
         "stdout": "12 world 7\nHELLO, WORLD Hello, java\n4 a-b--c\npad|ababab\ntrue true e\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1147,
-        "compileMs": 8,
-        "generateMs": 1076,
-        "runMs": 4
+        "wallMs": 2699,
+        "compileMs": 35,
+        "generateMs": 2626,
+        "runMs": 5
       },
       {
         "id": "stringbuilder",
@@ -46,10 +46,10 @@
         "stdout": ",9,8,7,6,5,4,3,2,1,0\naXc\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 675,
-        "compileMs": 23,
-        "generateMs": 633,
-        "runMs": 2
+        "wallMs": 762,
+        "compileMs": 34,
+        "generateMs": 715,
+        "runMs": 1
       },
       {
         "id": "stringformat",
@@ -58,10 +58,10 @@
         "stdout": "42|   42|42   |00042\n3.142|1.234500e+03|x|true\nn=7\n1,234,567\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1683,
-        "compileMs": 23,
-        "generateMs": 1633,
-        "runMs": 8
+        "wallMs": 1309,
+        "compileMs": 25,
+        "generateMs": 1261,
+        "runMs": 5
       },
       {
         "id": "arrays-1d",
@@ -70,10 +70,10 @@
         "stdout": "[1, 3, 5, 9]\n2\n[1, 3, 5, 9, 7, 7] sum=32\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 614,
-        "compileMs": 20,
-        "generateMs": 581,
-        "runMs": 1
+        "wallMs": 711,
+        "compileMs": 21,
+        "generateMs": 673,
+        "runMs": 2
       },
       {
         "id": "arrays-2d",
@@ -82,10 +82,10 @@
         "stdout": "[0, 1, 2]\n[3, 4, 5]\n[6, 7, 8]\ndeep=[[0, 1, 2], [3, 4, 5], [6, 7, 8]]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 594,
-        "compileMs": 12,
-        "generateMs": 573,
-        "runMs": 1
+        "wallMs": 1084,
+        "compileMs": 31,
+        "generateMs": 1041,
+        "runMs": 2
       },
       {
         "id": "boxing",
@@ -94,10 +94,10 @@
         "stdout": "true true false\n43 -7 1010\n2147483647 -9223372036854775808 true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 460,
-        "compileMs": 11,
-        "generateMs": 439,
-        "runMs": 1
+        "wallMs": 1254,
+        "compileMs": 27,
+        "generateMs": 1199,
+        "runMs": 2
       },
       {
         "id": "math-big",
@@ -106,10 +106,10 @@
         "stdout": "7 4 1024\n3 2.0 12.0\n1.01\n0.3\n246913578024691357802469135780\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 611,
-        "compileMs": 9,
-        "generateMs": 591,
-        "runMs": 2
+        "wallMs": 1815,
+        "compileMs": 29,
+        "generateMs": 1769,
+        "runMs": 6
       },
       {
         "id": "chars",
@@ -118,10 +118,10 @@
         "stdout": "true true A\n4 233 233\n1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 438,
-        "compileMs": 7,
-        "generateMs": 425,
-        "runMs": 2
+        "wallMs": 760,
+        "compileMs": 13,
+        "generateMs": 736,
+        "runMs": 4
       },
       {
         "id": "inheritance",
@@ -130,10 +130,10 @@
         "stdout": "Square:9.0\nCircle:12.57\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 451,
-        "compileMs": 12,
-        "generateMs": 432,
-        "runMs": 1
+        "wallMs": 671,
+        "compileMs": 20,
+        "generateMs": 639,
+        "runMs": 2
       },
       {
         "id": "interfaces",
@@ -142,10 +142,10 @@
         "stdout": "hello world\nHELLO SCALA\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 516,
-        "compileMs": 15,
-        "generateMs": 493,
-        "runMs": 1
+        "wallMs": 737,
+        "compileMs": 26,
+        "generateMs": 697,
+        "runMs": 2
       },
       {
         "id": "inner-classes",
@@ -154,9 +154,9 @@
         "stdout": "10 1\nanon\n5\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 424,
-        "compileMs": 11,
-        "generateMs": 408,
+        "wallMs": 586,
+        "compileMs": 21,
+        "generateMs": 558,
         "runMs": 1
       },
       {
@@ -166,9 +166,9 @@
         "stdout": "MERCURY ordinal=0 density=5\nEARTH ordinal=1 density=5\nhome\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 403,
-        "compileMs": 13,
-        "generateMs": 384,
+        "wallMs": 587,
+        "compileMs": 22,
+        "generateMs": 556,
         "runMs": 1
       },
       {
@@ -178,10 +178,10 @@
         "stdout": "6 9 0\nfib=6765\nstring x\nobject x\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 386,
-        "compileMs": 8,
-        "generateMs": 369,
-        "runMs": 1
+        "wallMs": 587,
+        "compileMs": 11,
+        "generateMs": 564,
+        "runMs": 2
       },
       {
         "id": "list",
@@ -190,10 +190,10 @@
         "stdout": "[a, b, c, d] size=4\n[a, c, d] sub=[a, c]\n[a, d] contains=true idx=1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 464,
-        "compileMs": 14,
-        "generateMs": 438,
-        "runMs": 3
+        "wallMs": 795,
+        "compileMs": 33,
+        "generateMs": 734,
+        "runMs": 4
       },
       {
         "id": "map",
@@ -202,10 +202,10 @@
         "stdout": "11 -1 size=3\na=11\nb=2\nc=3\n[a, b, c] [11, 2, 3] true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 548,
-        "compileMs": 21,
-        "generateMs": 517,
-        "runMs": 2
+        "wallMs": 847,
+        "compileMs": 37,
+        "generateMs": 786,
+        "runMs": 4
       },
       {
         "id": "set",
@@ -214,9 +214,9 @@
         "stdout": "3 true\n[1, 2, 3]\n[1, 2, 3]\n[2, 3]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 774,
-        "compileMs": 28,
-        "generateMs": 735,
+        "wallMs": 1146,
+        "compileMs": 30,
+        "generateMs": 1103,
         "runMs": 2
       },
       {
@@ -226,10 +226,10 @@
         "stdout": "true\n6.5\n[9]\nString\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 666,
+        "wallMs": 916,
         "compileMs": 23,
-        "generateMs": 634,
-        "runMs": 2
+        "generateMs": 878,
+        "runMs": 3
       },
       {
         "id": "comparator",
@@ -238,10 +238,10 @@
         "stdout": "[bob(25), ann(30), cy(30)]\n[ann(30), bob(25), cy(30)]\n[ann(30), cy(30), bob(25)]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 547,
-        "compileMs": 21,
-        "generateMs": 518,
-        "runMs": 1
+        "wallMs": 809,
+        "compileMs": 38,
+        "generateMs": 738,
+        "runMs": 5
       },
       {
         "id": "lambda",
@@ -250,10 +250,10 @@
         "stdout": "42 5 supplied\n[ANN, BOB]\n21\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 957,
-        "compileMs": 15,
-        "generateMs": 923,
-        "runMs": 3
+        "wallMs": 763,
+        "compileMs": 21,
+        "generateMs": 728,
+        "runMs": 2
       },
       {
         "id": "streams",
@@ -262,10 +262,10 @@
         "stdout": "[10, 6, 16, 16]\n17\n{false=[5, 3, 1], true=[8, 8]}\n{0=1, 1=1, 2=3}\n55\n3 5.0\n5,3,8,1,8\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1447,
-        "compileMs": 91,
-        "generateMs": 1333,
-        "runMs": 6
+        "wallMs": 1069,
+        "compileMs": 53,
+        "generateMs": 1001,
+        "runMs": 7
       },
       {
         "id": "optional",
@@ -274,9 +274,9 @@
         "stdout": "VALUE\nfallback\ntrue\nfalse\ngot value\n43\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 853,
-        "compileMs": 31,
-        "generateMs": 812,
+        "wallMs": 804,
+        "compileMs": 27,
+        "generateMs": 765,
         "runMs": 2
       },
       {
@@ -286,10 +286,10 @@
         "stdout": "finally 5\nfinally 0\n20 -1\nfinally -1\ncaught negative\nIllegalStateException:nested\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 565,
-        "compileMs": 13,
-        "generateMs": 543,
-        "runMs": 1
+        "wallMs": 724,
+        "compileMs": 14,
+        "generateMs": 695,
+        "runMs": 2
       },
       {
         "id": "try-with-resources",
@@ -298,9 +298,9 @@
         "stdout": "open a\nopen b\nuse a\nuse b\nclose b\nclose a\ndone\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 599,
-        "compileMs": 10,
-        "generateMs": 579,
+        "wallMs": 660,
+        "compileMs": 27,
+        "generateMs": 622,
         "runMs": 1
       },
       {
@@ -310,9 +310,9 @@
         "stdout": "Point[x=1, y=2] 1 3\ntrue true\n[Point[x=1, y=2], Point[x=3, y=4]]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 693,
-        "compileMs": 16,
-        "generateMs": 668,
+        "wallMs": 640,
+        "compileMs": 14,
+        "generateMs": 617,
         "runMs": 1
       },
       {
@@ -322,10 +322,10 @@
         "stdout": "42 text\nline_one\nline_two_%s\n2 2\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 697,
-        "compileMs": 9,
-        "generateMs": 675,
-        "runMs": 5
+        "wallMs": 778,
+        "compileMs": 12,
+        "generateMs": 755,
+        "runMs": 3
       },
       {
         "id": "switch-expression",
@@ -334,10 +334,10 @@
         "stdout": "3.14 4.0\n1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 692,
-        "compileMs": 31,
-        "generateMs": 651,
-        "runMs": 1
+        "wallMs": 651,
+        "compileMs": 22,
+        "generateMs": 618,
+        "runMs": 2
       },
       {
         "id": "reflection",
@@ -346,9 +346,9 @@
         "stdout": "Main$Thing Thing\n1\nvalue=3\nthing\nString\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 703,
-        "compileMs": 12,
-        "generateMs": 683,
+        "wallMs": 625,
+        "compileMs": 9,
+        "generateMs": 604,
         "runMs": 2
       },
       {
@@ -358,9 +358,9 @@
         "stdout": "2024-02-29 THURSDAY 2024-03-01\n2024-01-02 03:04:05\n90 true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1831,
-        "compileMs": 11,
-        "generateMs": 1800,
+        "wallMs": 2532,
+        "compileMs": 25,
+        "generateMs": 2464,
         "runMs": 7
       },
       {
@@ -370,10 +370,10 @@
         "stdout": "abc123 abc 123\ndef456 def 456\na#b#\ntrue\n[a, b, , c]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1145,
-        "compileMs": 13,
-        "generateMs": 1110,
-        "runMs": 7
+        "wallMs": 1272,
+        "compileMs": 16,
+        "generateMs": 1242,
+        "runMs": 5
       },
       {
         "id": "system-props",
@@ -382,10 +382,10 @@
         "stdout": "java.version=21\nos.name=TeaVM\nspec=null\nline.separator=1\nnanoTime>0=true\ncurrentTimeMillis>0=true\nelapsed>=0=true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 696,
-        "compileMs": 13,
-        "generateMs": 668,
-        "runMs": 1
+        "wallMs": 610,
+        "compileMs": 6,
+        "generateMs": 595,
+        "runMs": 2
       },
       {
         "id": "threads",
@@ -394,22 +394,22 @@
         "stdout": "in thread\nname=main\natomic=5\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 478,
-        "compileMs": 14,
-        "generateMs": 457,
+        "wallMs": 592,
+        "compileMs": 10,
+        "generateMs": 572,
         "runMs": 2
       },
       {
         "id": "file-io",
         "area": "io",
-        "ok": false,
-        "stdout": "",
-        "error": "Directory does not exist",
-        "exitCode": 1,
-        "wallMs": 797,
-        "compileMs": 8,
-        "generateMs": 782,
-        "runMs": 2
+        "ok": true,
+        "stdout": "hello file\nexists=true size=10\ndeleted=true\ntrue\n",
+        "error": "",
+        "exitCode": 0,
+        "wallMs": 1350,
+        "compileMs": 15,
+        "generateMs": 1319,
+        "runMs": 6
       },
       {
         "id": "stdin",
@@ -418,9 +418,9 @@
         "stdout": "buffered=livecodes\nscanner=eof\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 990,
-        "compileMs": 8,
-        "generateMs": 972,
+        "wallMs": 1465,
+        "compileMs": 17,
+        "generateMs": 1435,
         "runMs": 4
       },
       {
@@ -430,9 +430,9 @@
         "stdout": "2 14 12 -11\n20 -4 15\n12 10 small\nfalse true true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 364,
-        "compileMs": 5,
-        "generateMs": 353,
+        "wallMs": 468,
+        "compileMs": 7,
+        "generateMs": 455,
         "runMs": 1
       },
       {
@@ -442,9 +442,9 @@
         "stdout": "-2147483648\n9223372036854775807 -9223372036854775808\n8 64 3\n127 ff -101\n3 -4 1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 391,
-        "compileMs": 6,
-        "generateMs": 376,
+        "wallMs": 460,
+        "compileMs": 9,
+        "generateMs": 445,
         "runMs": 1
       },
       {
@@ -454,9 +454,9 @@
         "stdout": "total=8\nn=0\ni=0\ni=2\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 422,
-        "compileMs": 14,
-        "generateMs": 402,
+        "wallMs": 806,
+        "compileMs": 7,
+        "generateMs": 790,
         "runMs": 1
       },
       {
@@ -466,10 +466,10 @@
         "stdout": "A\nB\n?\none-or-two\nfalls through to three\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 371,
-        "compileMs": 5,
-        "generateMs": 360,
-        "runMs": 0
+        "wallMs": 514,
+        "compileMs": 7,
+        "generateMs": 494,
+        "runMs": 1
       },
       {
         "id": "static-init",
@@ -478,9 +478,9 @@
         "stdout": "static block counter=10\ninstance block instance=11\nctor instance=11 counter=11\ninstance block instance=12\nctor instance=12 counter=12\nfinal counter=12\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 385,
-        "compileMs": 5,
-        "generateMs": 374,
+        "wallMs": 487,
+        "compileMs": 18,
+        "generateMs": 459,
         "runMs": 1
       },
       {
@@ -490,9 +490,9 @@
         "stdout": "ADD=7\nMUL=12\n0 MUL\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 404,
-        "compileMs": 7,
-        "generateMs": 391,
+        "wallMs": 495,
+        "compileMs": 10,
+        "generateMs": 478,
         "runMs": 1
       },
       {
@@ -502,9 +502,9 @@
         "stdout": "dog says woof\ncat says meow\nx says ?\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 385,
-        "compileMs": 6,
-        "generateMs": 373,
+        "wallMs": 436,
+        "compileMs": 7,
+        "generateMs": 418,
         "runMs": 1
       },
       {
@@ -514,10 +514,10 @@
         "stdout": "derived\nextra\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 372,
-        "compileMs": 6,
-        "generateMs": 360,
-        "runMs": 0
+        "wallMs": 532,
+        "compileMs": 9,
+        "generateMs": 516,
+        "runMs": 1
       },
       {
         "id": "constructor-chain",
@@ -526,9 +526,9 @@
         "stdout": "A\nA1\nB\ndone\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 373,
-        "compileMs": 5,
-        "generateMs": 361,
+        "wallMs": 453,
+        "compileMs": 7,
+        "generateMs": 440,
         "runMs": 0
       },
       {
@@ -538,9 +538,9 @@
         "stdout": "int\nlong\nInteger\nObject\nObject\nvarargs\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 382,
+        "wallMs": 411,
         "compileMs": 5,
-        "generateMs": 372,
+        "generateMs": 400,
         "runMs": 0
       },
       {
@@ -550,9 +550,9 @@
         "stdout": "1 3\n42\n7\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 388,
-        "compileMs": 7,
-        "generateMs": 370,
+        "wallMs": 417,
+        "compileMs": 8,
+        "generateMs": 402,
         "runMs": 1
       },
       {
@@ -562,10 +562,10 @@
         "stdout": "9\nc\nInteger:5 Double:2.5\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 484,
-        "compileMs": 28,
-        "generateMs": 448,
-        "runMs": 1
+        "wallMs": 549,
+        "compileMs": 12,
+        "generateMs": 529,
+        "runMs": 2
       },
       {
         "id": "generics-wildcards",
@@ -574,10 +574,10 @@
         "stdout": "6.5\n[1, 2, a, b]\n3 two\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 430,
-        "compileMs": 10,
-        "generateMs": 414,
-        "runMs": 1
+        "wallMs": 543,
+        "compileMs": 12,
+        "generateMs": 513,
+        "runMs": 5
       },
       {
         "id": "generics-inference",
@@ -586,10 +586,10 @@
         "stdout": "{a=[1, 2, 3]}\nArrayList [x, y]\n{a=2, b=1}\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 440,
-        "compileMs": 13,
-        "generateMs": 421,
-        "runMs": 1
+        "wallMs": 676,
+        "compileMs": 37,
+        "generateMs": 621,
+        "runMs": 3
       },
       {
         "id": "list-deque-queue",
@@ -598,9 +598,9 @@
         "stdout": "[1, 2, 3] peek=1 poll=1\nab empty=true\n135\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 409,
-        "compileMs": 9,
-        "generateMs": 393,
+        "wallMs": 527,
+        "compileMs": 19,
+        "generateMs": 501,
         "runMs": 1
       },
       {
@@ -610,9 +610,9 @@
         "stdout": "{z=1, a=1, m=1}\n{a=1, m=1, z=1}\na z {a=1} {m=1, z=1}\n{z=1, m=1, a=1}\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 441,
-        "compileMs": 8,
-        "generateMs": 426,
+        "wallMs": 522,
+        "compileMs": 10,
+        "generateMs": 504,
         "runMs": 2
       },
       {
@@ -622,9 +622,9 @@
         "stdout": "[3, 2, 1] max=3 min=1\n[1, 2, 3]\n1 [x, x, x]\n[1, 2, 3]\nunmodifiable\n[] [s]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 423,
-        "compileMs": 10,
-        "generateMs": 406,
+        "wallMs": 487,
+        "compileMs": 11,
+        "generateMs": 469,
         "runMs": 2
       },
       {
@@ -634,9 +634,9 @@
         "stdout": "[a, c]\n[A, C, Z]\nZCA\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 463,
-        "compileMs": 7,
-        "generateMs": 440,
+        "wallMs": 654,
+        "compileMs": 9,
+        "generateMs": 637,
         "runMs": 2
       },
       {
@@ -646,9 +646,9 @@
         "stdout": "[a3, b2, c1]\n[a3, b2, c1]\n[a3, b2, c1]\n[alice, Bob, Carol]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 614,
-        "compileMs": 19,
-        "generateMs": 588,
+        "wallMs": 651,
+        "compileMs": 26,
+        "generateMs": 617,
         "runMs": 2
       },
       {
@@ -658,10 +658,10 @@
         "stdout": "[apple, banana, cherry, avocado]\n{a=[apple, avocado], b=[banana], c=[cherry]}\n{5=1, 6=2, 7=1}\n{5=apple, 6=banana/cherry, 7=avocado}\n4 24 5 7 6.0\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 599,
-        "compileMs": 21,
-        "generateMs": 564,
-        "runMs": 7
+        "wallMs": 706,
+        "compileMs": 27,
+        "generateMs": 668,
+        "runMs": 4
       },
       {
         "id": "streams-flatmap",
@@ -670,10 +670,10 @@
         "stdout": "[1, 2, 3, 4, 5]\n[a, b, c, d]\n[1, 2, 4, 8, 16, 32]\n[3, 5]\n{false=[1, 3], true=[2, 4]}\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1015,
-        "compileMs": 39,
-        "generateMs": 964,
-        "runMs": 3
+        "wallMs": 1237,
+        "compileMs": 23,
+        "generateMs": 1199,
+        "runMs": 4
       },
       {
         "id": "streams-reduce",
@@ -682,10 +682,10 @@
         "stdout": "10\n24\n1234\n4\ntrue true true\n4 1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 633,
-        "compileMs": 14,
-        "generateMs": 602,
-        "runMs": 6
+        "wallMs": 548,
+        "compileMs": 17,
+        "generateMs": 524,
+        "runMs": 2
       },
       {
         "id": "streams-numbers",
@@ -694,10 +694,10 @@
         "stdout": "10 120\n2 8\n2.0\n55\n[3, 6, 9]\n6.0\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 751,
-        "compileMs": 34,
-        "generateMs": 710,
-        "runMs": 2
+        "wallMs": 612,
+        "compileMs": 12,
+        "generateMs": 592,
+        "runMs": 3
       },
       {
         "id": "functional-composition",
@@ -706,9 +706,9 @@
         "stdout": "11 12\nhi! id\ntrue true\n5\n12\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 394,
+        "wallMs": 437,
         "compileMs": 11,
-        "generateMs": 376,
+        "generateMs": 421,
         "runMs": 1
       },
       {
@@ -718,10 +718,10 @@
         "stdout": "value:zero\nvalue:one\nwrapped:cause\nok\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 375,
+        "wallMs": 464,
         "compileMs": 6,
-        "generateMs": 363,
-        "runMs": 1
+        "generateMs": 443,
+        "runMs": 2
       },
       {
         "id": "exceptions-finally",
@@ -730,9 +730,9 @@
         "stdout": "finally 1\n1\nfinally -1\n2\n2\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 375,
-        "compileMs": 6,
-        "generateMs": 364,
+        "wallMs": 530,
+        "compileMs": 15,
+        "generateMs": 506,
         "runMs": 1
       },
       {
@@ -742,9 +742,9 @@
         "stdout": "checked <- IllegalStateException\ntrue\nAppRuntime runtime\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 397,
-        "compileMs": 6,
-        "generateMs": 385,
+        "wallMs": 441,
+        "compileMs": 8,
+        "generateMs": 427,
         "runMs": 1
       },
       {
@@ -754,9 +754,9 @@
         "stdout": "primary=body\nsuppressed=2\n  close-b\n  close-a\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 368,
+        "wallMs": 451,
         "compileMs": 6,
-        "generateMs": 356,
+        "generateMs": 438,
         "runMs": 1
       },
       {
@@ -766,10 +766,10 @@
         "stdout": "frames>0=true\nhasMain=true\nhasInner=true\nclassOfTop=Main\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 400,
-        "compileMs": 8,
-        "generateMs": 384,
-        "runMs": 3
+        "wallMs": 477,
+        "compileMs": 12,
+        "generateMs": 455,
+        "runMs": 4
       },
       {
         "id": "strings-more",
@@ -778,10 +778,10 @@
         "stdout": "-1 true\na+b+c x|\na|b|c 3\nhello HELLO false\nabcd 3 1\nxxx a_b\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 485,
+        "wallMs": 532,
         "compileMs": 6,
-        "generateMs": 460,
-        "runMs": 7
+        "generateMs": 515,
+        "runMs": 5
       },
       {
         "id": "strings-split-join",
@@ -790,10 +790,10 @@
         "stdout": "4 [a, b, , c]\n[a, b, ,c]\n[a, b, , c]\n[a, b, c]\na-b--c true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 946,
-        "compileMs": 19,
-        "generateMs": 913,
-        "runMs": 3
+        "wallMs": 993,
+        "compileMs": 10,
+        "generateMs": 972,
+        "runMs": 4
       },
       {
         "id": "string-encoding",
@@ -802,9 +802,9 @@
         "stdout": "5\ncafé\n[99, 97, 102, -61, -87]\nHi\n3\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 446,
-        "compileMs": 6,
-        "generateMs": 434,
+        "wallMs": 534,
+        "compileMs": 7,
+        "generateMs": 504,
         "runMs": 2
       },
       {
@@ -814,10 +814,10 @@
         "stdout": ">>art-42true1.5cxZ len=18 cap>0=true\ndcba\nnull\nnull\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 415,
-        "compileMs": 7,
-        "generateMs": 402,
-        "runMs": 1
+        "wallMs": 548,
+        "compileMs": 10,
+        "generateMs": 528,
+        "runMs": 2
       },
       {
         "id": "char-classes",
@@ -826,10 +826,10 @@
         "stdout": "5 3\na 7 -1\nunicode-blocks=BASIC_LATIN\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 505,
-        "compileMs": 5,
-        "generateMs": 491,
-        "runMs": 3
+        "wallMs": 739,
+        "compileMs": 29,
+        "generateMs": 692,
+        "runMs": 4
       },
       {
         "id": "big-integer",
@@ -838,9 +838,9 @@
         "stdout": "12345678901234568890\n23\n12345678901234567 890\n1 -12345678901234567890\n1024 255\n10 771604931327160493\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 467,
-        "compileMs": 6,
-        "generateMs": 452,
+        "wallMs": 601,
+        "compileMs": 8,
+        "generateMs": 585,
         "runMs": 2
       },
       {
@@ -850,9 +850,9 @@
         "stdout": "3.505 2.5125\n1.01 1.00\n0.83333\n-1 1.005\n2.5\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 571,
-        "compileMs": 6,
-        "generateMs": 559,
+        "wallMs": 679,
+        "compileMs": 8,
+        "generateMs": 663,
         "runMs": 2
       },
       {
@@ -862,10 +862,10 @@
         "stdout": "3 -1.0 3\n3 -3 3.0\ntrue\n1.0 1.0 1.4142135623730951\n5.0 3.141592653589793 0.0\n1 -3.0\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 488,
-        "compileMs": 7,
-        "generateMs": 474,
-        "runMs": 1
+        "wallMs": 507,
+        "compileMs": 8,
+        "generateMs": 491,
+        "runMs": 2
       },
       {
         "id": "date-time",
@@ -874,10 +874,10 @@
         "stdout": "2024-02-29 2024-03-01 2023-02-28\nTHURSDAY 60 29 true\n13:45:30 14:15:30 13\n2024-02-29T13:45:30 2024-02-29T15:45:30\nP4Y1M28D 1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 761,
-        "compileMs": 9,
-        "generateMs": 744,
-        "runMs": 2
+        "wallMs": 670,
+        "compileMs": 8,
+        "generateMs": 652,
+        "runMs": 3
       },
       {
         "id": "date-format",
@@ -886,10 +886,10 @@
         "stdout": "2026-09-15T08:05:03\n2026-09-15 08:05\n15 Sep 2026\n2026-09-15T08:05:03\n08:05\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1829,
-        "compileMs": 6,
-        "generateMs": 1797,
-        "runMs": 7
+        "wallMs": 1658,
+        "compileMs": 9,
+        "generateMs": 1628,
+        "runMs": 8
       },
       {
         "id": "instant-duration",
@@ -898,10 +898,10 @@
         "stdout": "3661 61\ntrue true\n26 30\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1444,
-        "compileMs": 8,
-        "generateMs": 1412,
-        "runMs": 5
+        "wallMs": 1618,
+        "compileMs": 7,
+        "generateMs": 1578,
+        "runMs": 11
       },
       {
         "id": "regex-groups",
@@ -910,9 +910,9 @@
         "stdout": "2026-09-15 y=2026 m=09 start=3\n2025-01-02 y=2025 m=01 start=18\ncount=2\n1a2b\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 924,
-        "compileMs": 7,
-        "generateMs": 904,
+        "wallMs": 1068,
+        "compileMs": 24,
+        "generateMs": 1029,
         "runMs": 4
       },
       {
@@ -922,10 +922,10 @@
         "stdout": "[one, two, three]\n2026/09/15\nHell0 World\ntrue false\na#b#c\na#b#c\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 873,
-        "compileMs": 6,
-        "generateMs": 857,
-        "runMs": 4
+        "wallMs": 1032,
+        "compileMs": 7,
+        "generateMs": 1012,
+        "runMs": 5
       },
       {
         "id": "regex-quantifiers",
@@ -934,10 +934,10 @@
         "stdout": "12,345,6,\ntrue\nfalse\nb\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 842,
-        "compileMs": 6,
-        "generateMs": 826,
-        "runMs": 3
+        "wallMs": 962,
+        "compileMs": 8,
+        "generateMs": 943,
+        "runMs": 4
       },
       {
         "id": "reflection-members",
@@ -946,10 +946,10 @@
         "stdout": "Sample Main$Sample\n7\n9\nhi world\n42\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 415,
-        "compileMs": 7,
-        "generateMs": 403,
-        "runMs": 1
+        "wallMs": 484,
+        "compileMs": 8,
+        "generateMs": 469,
+        "runMs": 2
       },
       {
         "id": "reflection-class-api",
@@ -958,9 +958,9 @@
         "stdout": "Object\ntrue false\ntrue true\ntrue true\nString int\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 373,
-        "compileMs": 6,
-        "generateMs": 361,
+        "wallMs": 461,
+        "compileMs": 7,
+        "generateMs": 448,
         "runMs": 1
       },
       {
@@ -970,9 +970,9 @@
         "stdout": "true true\n[2, 3, 4, 0, 0]\n[2, 3]\n[[1, 2], [3]]\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 453,
-        "compileMs": 9,
-        "generateMs": 437,
+        "wallMs": 552,
+        "compileMs": 10,
+        "generateMs": 536,
         "runMs": 1
       },
       {
@@ -982,9 +982,9 @@
         "stdout": "[P[x=1], P[x=2], P[x=3]]\n[P[x=9], P[x=9], P[x=9]]\n1\n6\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 419,
-        "compileMs": 10,
-        "generateMs": 403,
+        "wallMs": 480,
+        "compileMs": 13,
+        "generateMs": 461,
         "runMs": 1
       },
       {
@@ -994,10 +994,10 @@
         "stdout": "hello! size=6\n6 hello!\nabc\nline1/line2/null\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 457,
-        "compileMs": 6,
-        "generateMs": 437,
-        "runMs": 3
+        "wallMs": 534,
+        "compileMs": 7,
+        "generateMs": 519,
+        "runMs": 2
       },
       {
         "id": "io-writers",
@@ -1006,10 +1006,10 @@
         "stdout": "int=42\nx=7\nchars=11\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 838,
-        "compileMs": 10,
-        "generateMs": 818,
-        "runMs": 1
+        "wallMs": 934,
+        "compileMs": 8,
+        "generateMs": 910,
+        "runMs": 3
       },
       {
         "id": "parse-format",
@@ -1018,10 +1018,10 @@
         "stdout": "1,234.57\n1234.5678\n1,000,000\n1.23|7|x\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 930,
-        "compileMs": 7,
-        "generateMs": 911,
-        "runMs": 3
+        "wallMs": 1049,
+        "compileMs": 16,
+        "generateMs": 1016,
+        "runMs": 4
       },
       {
         "id": "atomic-sync",
@@ -1030,9 +1030,9 @@
         "stdout": "counter=6\n2 2 7\ntrue 10\n2\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 397,
-        "compileMs": 9,
-        "generateMs": 383,
+        "wallMs": 448,
+        "compileMs": 8,
+        "generateMs": 433,
         "runMs": 1
       },
       {
@@ -1042,9 +1042,9 @@
         "stdout": "{a=3, b=3}\n[1, 3]\n-1 2\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 543,
-        "compileMs": 30,
-        "generateMs": 495,
+        "wallMs": 541,
+        "compileMs": 12,
+        "generateMs": 522,
         "runMs": 2
       },
       {
@@ -1054,10 +1054,10 @@
         "stdout": "true false\n10 -1\n6\npresent 5\nnull absent\n5 1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 468,
-        "compileMs": 11,
-        "generateMs": 449,
-        "runMs": 1
+        "wallMs": 526,
+        "compileMs": 13,
+        "generateMs": 497,
+        "runMs": 2
       },
       {
         "id": "records-nested",
@@ -1066,9 +1066,9 @@
         "stdout": "ann Seoul ann/30\ntrue\ntrue\nPerson[name=ann, age=30, address=Address[city=Seoul]]\n[ann/30]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 527,
-        "compileMs": 12,
-        "generateMs": 508,
+        "wallMs": 577,
+        "compileMs": 30,
+        "generateMs": 540,
         "runMs": 1
       },
       {
@@ -1078,9 +1078,9 @@
         "stdout": "circle 2.0\nbig circle\nrect 6.0\nother\nnull\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 535,
-        "compileMs": 9,
-        "generateMs": 519,
+        "wallMs": 465,
+        "compileMs": 8,
+        "generateMs": 450,
         "runMs": 1
       },
       {
@@ -1090,9 +1090,9 @@
         "stdout": "4\ntrue\ntrue\n2 xx\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1007,
-        "compileMs": 7,
-        "generateMs": 988,
+        "wallMs": 888,
+        "compileMs": 8,
+        "generateMs": 868,
         "runMs": 3
       },
       {
@@ -1102,9 +1102,9 @@
         "stdout": "42 ArrayList 1 text123\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 506,
-        "compileMs": 9,
-        "generateMs": 491,
+        "wallMs": 437,
+        "compileMs": 8,
+        "generateMs": 423,
         "runMs": 1
       },
       {
@@ -1114,10 +1114,10 @@
         "stdout": "total=6\nabc\n123\na=1 b=2 c=3 \n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 603,
-        "compileMs": 11,
-        "generateMs": 582,
-        "runMs": 2
+        "wallMs": 481,
+        "compileMs": 9,
+        "generateMs": 465,
+        "runMs": 1
       },
       {
         "id": "iterable-custom",
@@ -1126,9 +1126,9 @@
         "stdout": "4 3 2 1\n6\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 477,
-        "compileMs": 10,
-        "generateMs": 460,
+        "wallMs": 483,
+        "compileMs": 19,
+        "generateMs": 457,
         "runMs": 1
       },
       {
@@ -1138,9 +1138,9 @@
         "stdout": "[1.2, 1.10, 2.0]\n1.2 2.0\n[1.2, 1.10]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 521,
-        "compileMs": 11,
-        "generateMs": 501,
+        "wallMs": 649,
+        "compileMs": 9,
+        "generateMs": 632,
         "runMs": 1
       },
       {
@@ -1150,9 +1150,9 @@
         "stdout": "[0, 1, 4, 9, 16] sum=30\n[0, 9, 16]\ntrue 1 0\n[100, 9, 16]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 481,
-        "compileMs": 8,
-        "generateMs": 464,
+        "wallMs": 590,
+        "compileMs": 10,
+        "generateMs": 572,
         "runMs": 1
       },
       {
@@ -1162,9 +1162,9 @@
         "stdout": "13 42 calc\n13 7\n1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 464,
-        "compileMs": 10,
-        "generateMs": 446,
+        "wallMs": 983,
+        "compileMs": 49,
+        "generateMs": 917,
         "runMs": 1
       },
       {
@@ -1174,9 +1174,9 @@
         "stdout": "0 10 20 \nab\n5\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 473,
-        "compileMs": 10,
-        "generateMs": 456,
+        "wallMs": 670,
+        "compileMs": 16,
+        "generateMs": 645,
         "runMs": 1
       },
       {
@@ -1186,9 +1186,9 @@
         "stdout": "{a=[{x=1, y=2}]}\n2\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 526,
-        "compileMs": 11,
-        "generateMs": 506,
+        "wallMs": 660,
+        "compileMs": 15,
+        "generateMs": 636,
         "runMs": 2
       },
       {
@@ -1198,9 +1198,9 @@
         "stdout": "[a, b, c]\n[1, 2]\n1 6\n[x, y]\n[1, 2] 9\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 500,
-        "compileMs": 9,
-        "generateMs": 478,
+        "wallMs": 511,
+        "compileMs": 10,
+        "generateMs": 491,
         "runMs": 2
       },
       {
@@ -1210,9 +1210,9 @@
         "stdout": "42 static 1\nreg 0 1\n1073741823 1073741824\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 544,
-        "compileMs": 16,
-        "generateMs": 519,
+        "wallMs": 588,
+        "compileMs": 10,
+        "generateMs": 570,
         "runMs": 1
       },
       {
@@ -1222,9 +1222,9 @@
         "stdout": "inner+outer\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 412,
-        "compileMs": 8,
-        "generateMs": 399,
+        "wallMs": 543,
+        "compileMs": 11,
+        "generateMs": 526,
         "runMs": 1
       },
       {
@@ -1234,9 +1234,9 @@
         "stdout": "true\nsample 3\n1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 554,
+        "wallMs": 552,
         "compileMs": 9,
-        "generateMs": 538,
+        "generateMs": 533,
         "runMs": 1
       },
       {
@@ -1246,9 +1246,9 @@
         "stdout": "hashset=1 true\ntreeset=[x1]\ntrue true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 548,
-        "compileMs": 12,
-        "generateMs": 529,
+        "wallMs": 642,
+        "compileMs": 16,
+        "generateMs": 610,
         "runMs": 2
       },
       {
@@ -1258,9 +1258,9 @@
         "stdout": "true true false\ntrue\nfallback v\n? true true\nmsg\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 408,
-        "compileMs": 9,
-        "generateMs": 394,
+        "wallMs": 664,
+        "compileMs": 10,
+        "generateMs": 647,
         "runMs": 1
       },
       {
@@ -1270,10 +1270,10 @@
         "stdout": "42 10\n3.14 true\nff 1000\n-128 32767 ￿\n-1 0\nnf\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1687,
-        "compileMs": 5,
-        "generateMs": 1667,
-        "runMs": 5
+        "wallMs": 656,
+        "compileMs": 9,
+        "generateMs": 637,
+        "runMs": 2
       },
       {
         "id": "string-valueof",
@@ -1282,10 +1282,10 @@
         "stdout": "42 ab null\ntrue 1.5 c\n12.5\nx12 3x\nab\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1290,
-        "compileMs": 17,
-        "generateMs": 1259,
-        "runMs": 3
+        "wallMs": 548,
+        "compileMs": 7,
+        "generateMs": 533,
+        "runMs": 1
       },
       {
         "id": "autobox-unbox",
@@ -1294,10 +1294,10 @@
         "stdout": "1 1 true\nauto-unboxed\nfalse true\n3 3.5\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1481,
-        "compileMs": 20,
-        "generateMs": 1446,
-        "runMs": 4
+        "wallMs": 622,
+        "compileMs": 9,
+        "generateMs": 604,
+        "runMs": 2
       },
       {
         "id": "nested-loops-labels",
@@ -1306,10 +1306,10 @@
         "stdout": "found=12\nsum=45\n#rows=3 #cols=3\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1309,
-        "compileMs": 18,
-        "generateMs": 1279,
-        "runMs": 2
+        "wallMs": 539,
+        "compileMs": 7,
+        "generateMs": 524,
+        "runMs": 1
       },
       {
         "id": "recursion-more",
@@ -1318,10 +1318,10 @@
         "stdout": "9\n2432902008176640000\n500\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1501,
-        "compileMs": 19,
-        "generateMs": 1467,
-        "runMs": 3
+        "wallMs": 649,
+        "compileMs": 8,
+        "generateMs": 632,
+        "runMs": 1
       },
       {
         "id": "string-switch-enum",
@@ -1330,10 +1330,10 @@
         "stdout": "1 2 3 \n1\n[RED, GREEN, BLUE]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1323,
-        "compileMs": 28,
-        "generateMs": 1283,
-        "runMs": 3
+        "wallMs": 553,
+        "compileMs": 11,
+        "generateMs": 532,
+        "runMs": 1
       },
       {
         "id": "charsequence-impl",
@@ -1342,10 +1342,10 @@
         "stdout": "***** 5 *\n**\n*****,*****\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1155,
-        "compileMs": 23,
-        "generateMs": 1114,
-        "runMs": 5
+        "wallMs": 639,
+        "compileMs": 9,
+        "generateMs": 539,
+        "runMs": 1
       },
       {
         "id": "clone-deep",
@@ -1354,10 +1354,10 @@
         "stdout": "1,2 9,2 true\n[1, 2, 3] [9, 2, 3]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1306,
-        "compileMs": 22,
-        "generateMs": 1272,
-        "runMs": 3
+        "wallMs": 535,
+        "compileMs": 12,
+        "generateMs": 515,
+        "runMs": 1
       },
       {
         "id": "interfaces-static-default",
@@ -1366,9 +1366,9 @@
         "stdout": "A -\nrepo\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1486,
-        "compileMs": 17,
-        "generateMs": 1457,
+        "wallMs": 491,
+        "compileMs": 7,
+        "generateMs": 476,
         "runMs": 1
       },
       {
@@ -1378,10 +1378,10 @@
         "stdout": "true false\n4 true\nint=43\n3 7.0 A -126\n3 Integer\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1520,
-        "compileMs": 20,
-        "generateMs": 1480,
-        "runMs": 3
+        "wallMs": 513,
+        "compileMs": 9,
+        "generateMs": 496,
+        "runMs": 1
       },
       {
         "id": "ternary-conditions",
@@ -1390,9 +1390,9 @@
         "stdout": "5 5 0\n5 odd\nnone no\nboth\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1102,
-        "compileMs": 22,
-        "generateMs": 1066,
+        "wallMs": 583,
+        "compileMs": 7,
+        "generateMs": 566,
         "runMs": 1
       },
       {
@@ -1402,10 +1402,10 @@
         "stdout": "true\ntrue false\ntrue\n2 x\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1068,
-        "compileMs": 16,
-        "generateMs": 967,
-        "runMs": 9
+        "wallMs": 643,
+        "compileMs": 14,
+        "generateMs": 618,
+        "runMs": 2
       },
       {
         "id": "matrix-compute",
@@ -1414,9 +1414,9 @@
         "stdout": "19 22 |43 50 |\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1159,
-        "compileMs": 82,
-        "generateMs": 1060,
+        "wallMs": 539,
+        "compileMs": 14,
+        "generateMs": 519,
         "runMs": 1
       },
       {
@@ -1426,10 +1426,10 @@
         "stdout": "count=25\n[2, 3, 5, 7, 11, 13, 17, 19, 23, 29]\n97\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1183,
-        "compileMs": 21,
-        "generateMs": 1146,
-        "runMs": 3
+        "wallMs": 489,
+        "compileMs": 8,
+        "generateMs": 475,
+        "runMs": 1
       },
       {
         "id": "word-count",
@@ -1438,10 +1438,10 @@
         "stdout": "3 1 9\n[the]\n[BROWN, DOG, END]\n5\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 3503,
-        "compileMs": 60,
-        "generateMs": 3393,
-        "runMs": 14
+        "wallMs": 1155,
+        "compileMs": 24,
+        "generateMs": 1119,
+        "runMs": 4
       },
       {
         "id": "csv-parse",
@@ -1450,10 +1450,10 @@
         "stdout": "3 Row[name=alice, age=30, city=seoul]\nRow[name=alice, age=30, city=seoul]\nRow[name=carol, age=35, city=seoul]\n30.0\ncarol\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 3413,
-        "compileMs": 51,
-        "generateMs": 3335,
-        "runMs": 9
+        "wallMs": 1198,
+        "compileMs": 14,
+        "generateMs": 1173,
+        "runMs": 3
       },
       {
         "id": "inventory-app",
@@ -1462,10 +1462,10 @@
         "stdout": "total=15.5\nb\n3 1\n{a=3.0, b=10.0, c=2.5, d=0.0}\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1939,
-        "compileMs": 59,
-        "generateMs": 1858,
-        "runMs": 8
+        "wallMs": 693,
+        "compileMs": 19,
+        "generateMs": 665,
+        "runMs": 3
       },
       {
         "id": "json-ish-builder",
@@ -1474,10 +1474,10 @@
         "stdout": "{\"active\":true,\"name\":\"livecodes\",\"stars\":100}\nactive|name|stars\n[true, livecodes, 100]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1636,
-        "compileMs": 37,
-        "generateMs": 1580,
-        "runMs": 6
+        "wallMs": 559,
+        "compileMs": 13,
+        "generateMs": 537,
+        "runMs": 3
       },
       {
         "id": "stack-queue-sim",
@@ -1486,10 +1486,10 @@
         "stdout": "()[]=true\n(]=false\n(()=false\n([()])=true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1281,
-        "compileMs": 28,
-        "generateMs": 1239,
-        "runMs": 2
+        "wallMs": 538,
+        "compileMs": 9,
+        "generateMs": 522,
+        "runMs": 1
       },
       {
         "id": "binary-search",
@@ -1498,9 +1498,9 @@
         "stdout": "0 3 5 -1 \n3 -3\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1295,
-        "compileMs": 23,
-        "generateMs": 1263,
+        "wallMs": 435,
+        "compileMs": 8,
+        "generateMs": 418,
         "runMs": 1
       },
       {
@@ -1510,10 +1510,10 @@
         "stdout": "true\nfalse\nthree two one\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 2923,
+        "wallMs": 1018,
         "compileMs": 15,
-        "generateMs": 2885,
-        "runMs": 11
+        "generateMs": 988,
+        "runMs": 4
       },
       {
         "id": "custom-exception-flow",
@@ -1522,10 +1522,10 @@
         "stdout": "balance=70\nerror: need 30 more\nfinal balance=70\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1305,
-        "compileMs": 22,
-        "generateMs": 1269,
-        "runMs": 2
+        "wallMs": 385,
+        "compileMs": 8,
+        "generateMs": 371,
+        "runMs": 1
       },
       {
         "id": "exception-propagation",
@@ -1534,10 +1534,10 @@
         "stdout": "level3\ndistinct frames >= 3: true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1424,
-        "compileMs": 25,
-        "generateMs": 1381,
-        "runMs": 6
+        "wallMs": 458,
+        "compileMs": 9,
+        "generateMs": 435,
+        "runMs": 3
       },
       {
         "id": "finally-resource-order",
@@ -1546,9 +1546,9 @@
         "stdout": "open 1\nopen 2\nbody\nclose 2\nclose 1\nouter finally\nafter\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 1272,
-        "compileMs": 28,
-        "generateMs": 1232,
+        "wallMs": 392,
+        "compileMs": 13,
+        "generateMs": 374,
         "runMs": 1
       },
       {
@@ -1558,10 +1558,10 @@
         "stdout": "[        hi][hi        ]|\n0003.142\nff FF 10\ncart has 3 items\nab\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 10030,
-        "compileMs": 20,
-        "generateMs": 9852,
-        "runMs": 22
+        "wallMs": 1001,
+        "compileMs": 6,
+        "generateMs": 981,
+        "runMs": 5
       },
       {
         "id": "localdate-ops",
@@ -1570,10 +1570,10 @@
         "stdout": "73\n2026-03-15 2026-12-01\ntrue THURSDAY\n2026-01-05 MONDAY\nfalse\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 18073,
-        "compileMs": 224,
-        "generateMs": 17650,
-        "runMs": 14
+        "wallMs": 1284,
+        "compileMs": 9,
+        "generateMs": 1260,
+        "runMs": 5
       },
       {
         "id": "collections-frequency",
@@ -1582,10 +1582,10 @@
         "stdout": "3\n{a=3, b=2, c=1}\n[c, b, b, a, a, a]\n1\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 13154,
-        "compileMs": 158,
-        "generateMs": 12931,
-        "runMs": 8
+        "wallMs": 801,
+        "compileMs": 37,
+        "generateMs": 754,
+        "runMs": 2
       },
       {
         "id": "enum-map-set",
@@ -1594,10 +1594,10 @@
         "stdout": "{LOW=1, HIGH=3} 0\nfalse 2\n[LOW, MED, HIGH] [MED]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 3256,
-        "compileMs": 69,
-        "generateMs": 3164,
-        "runMs": 5
+        "wallMs": 536,
+        "compileMs": 13,
+        "generateMs": 516,
+        "runMs": 1
       },
       {
         "id": "recursive-generics",
@@ -1606,10 +1606,10 @@
         "stdout": "a+b\nQuery\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 3045,
-        "compileMs": 46,
-        "generateMs": 2837,
-        "runMs": 3
+        "wallMs": 501,
+        "compileMs": 12,
+        "generateMs": 482,
+        "runMs": 1
       },
       {
         "id": "interface-diamond",
@@ -1618,9 +1618,9 @@
         "stdout": "B/C\nB/C\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 8870,
-        "compileMs": 41,
-        "generateMs": 8256,
+        "wallMs": 497,
+        "compileMs": 8,
+        "generateMs": 483,
         "runMs": 1
       },
       {
@@ -1630,10 +1630,10 @@
         "stdout": "81\n1548008755920\ntrue\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 7320,
-        "compileMs": 206,
-        "generateMs": 6956,
-        "runMs": 15
+        "wallMs": 668,
+        "compileMs": 8,
+        "generateMs": 649,
+        "runMs": 2
       },
       {
         "id": "supplier-consumer",
@@ -1642,10 +1642,10 @@
         "stdout": "value consumed:value\ncount=3\nbuilt\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 17355,
-        "compileMs": 308,
-        "generateMs": 16419,
-        "runMs": 105
+        "wallMs": 436,
+        "compileMs": 16,
+        "generateMs": 413,
+        "runMs": 1
       },
       {
         "id": "string-interning",
@@ -1654,10 +1654,10 @@
         "stdout": "true\nfalse\ntrue\ntrue true\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 10105,
-        "compileMs": 166,
-        "generateMs": 9848,
-        "runMs": 3
+        "wallMs": 413,
+        "compileMs": 6,
+        "generateMs": 400,
+        "runMs": 1
       },
       {
         "id": "assert-like-validation",
@@ -1666,10 +1666,10 @@
         "stdout": "1 5 10\nlo > hi: 5 > 1\nmust not be null\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 11553,
-        "compileMs": 424,
-        "generateMs": 10954,
-        "runMs": 6
+        "wallMs": 408,
+        "compileMs": 8,
+        "generateMs": 395,
+        "runMs": 1
       },
       {
         "id": "bulk-collection-ops",
@@ -1678,10 +1678,10 @@
         "stdout": "false true [3, 4]\ntrue [3, 4, 3, 4, 5]\ntrue [4, 4, 5]\n[b, c]\n[a, d]\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 11030,
-        "compileMs": 168,
-        "generateMs": 10822,
-        "runMs": 8
+        "wallMs": 479,
+        "compileMs": 10,
+        "generateMs": 462,
+        "runMs": 1
       },
       {
         "id": "binary-trees",
@@ -1690,10 +1690,10 @@
         "stdout": "[1, 3, 4, 5, 7, 8, 9]\n1 9\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 5370,
-        "compileMs": 50,
-        "generateMs": 5296,
-        "runMs": 5
+        "wallMs": 429,
+        "compileMs": 8,
+        "generateMs": 415,
+        "runMs": 1
       },
       {
         "id": "state-machine",
@@ -1702,10 +1702,10 @@
         "stdout": "IDLE:0\nDONE:2\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 4431,
-        "compileMs": 115,
-        "generateMs": 4293,
-        "runMs": 2
+        "wallMs": 443,
+        "compileMs": 6,
+        "generateMs": 430,
+        "runMs": 1
       },
       {
         "id": "shapes-interface",
@@ -1714,10 +1714,10 @@
         "stdout": "Circle(3) Square(9) Circle(13)\n25\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 13301,
-        "compileMs": 72,
-        "generateMs": 13177,
-        "runMs": 8
+        "wallMs": 592,
+        "compileMs": 15,
+        "generateMs": 558,
+        "runMs": 3
       },
       {
         "id": "game-of-life",
@@ -1726,10 +1726,10 @@
         "stdout": "00000|00100|00100|00100|00000|\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 7793,
-        "compileMs": 229,
-        "generateMs": 7118,
-        "runMs": 49
+        "wallMs": 520,
+        "compileMs": 20,
+        "generateMs": 491,
+        "runMs": 0
       },
       {
         "id": "use-all-generics",
@@ -1738,10 +1738,10 @@
         "stdout": "{a=1, b=2}\n[x, x, x] [7, 7]\n2.0\n",
         "error": "",
         "exitCode": 0,
-        "wallMs": 13504,
-        "compileMs": 1185,
-        "generateMs": 12022,
-        "runMs": 12
+        "wallMs": 535,
+        "compileMs": 9,
+        "generateMs": 518,
+        "runMs": 2
       }
     ]
   },

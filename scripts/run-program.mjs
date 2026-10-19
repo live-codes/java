@@ -115,38 +115,109 @@ if (flags.listOutputs) {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-/** Minimal `teavmFile` bridge: enough for instantiation, no real filesystem. */
+/**
+ * `teavmFile` bridge: the host side of TeaVM's file system, with an in-memory layer — the same contract
+ * `src/worker-java.ts` implements for the browser. Results are `Int8Array`s framed as
+ * `[status, ...bytes]` (0 = ok, 1 = error message), and ids handed back to wasm index a byte store.
+ */
+const fileOperationBytes = new Map();
+const memoryFiles = new Map();
+let fileOperationNextId = 0;
+
+const bytesOf = (value) => {
+  if (value == null) return new Uint8Array(0);
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof Int8Array) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  return new Uint8Array(0);
+};
+
+const decodeBytes = (value) => decoder.decode(bytesOf(value));
+
+function fileOkResult(bytes) {
+  const payload = bytes ?? new Uint8Array(0);
+  const out = new Int8Array(payload.length + 1);
+  out[0] = 0;
+  out.set(payload, 1);
+  return out;
+}
+
+function fileErrorResult(error) {
+  const message = encoder.encode(String(error?.message ?? error));
+  const out = new Int8Array(message.length + 1);
+  out[0] = 1;
+  out.set(message, 1);
+  return out;
+}
+
+function storeOperationBytes(value) {
+  const id = ++fileOperationNextId;
+  fileOperationBytes.set(id, value);
+  return id;
+}
+
+const getOperationBytes = (id) => fileOperationBytes.get(id | 0) ?? fileErrorResult(new Error('released'));
+
 function installFileImports(imports) {
-  const empty = () => framed(new Uint8Array(0));
-  const framed = (payload) => {
-    const out = new Int8Array(payload.length + 1);
-    out.set(payload, 1);
-    return out;
+  const api = {};
+  api.setActiveProgram = (program) => {
+    globalThis.__teavmActiveProgram = program;
   };
-  const notSupported = (requestId) => globalThis.__teavmFileComplete?.(requestId, 0);
-  imports.teavmFile = {
-    setActiveProgram() {},
-    errorResult: (error) => {
-      const text = encoder.encode(String(error?.message ?? error));
-      const out = new Int8Array(text.length + 1);
-      out[0] = 1;
-      out.set(text, 1);
-      return out;
-    },
-    storeOperationBytes: () => 0,
-    operationBytes: (value) => (typeof value === 'number' ? empty() : value),
-    operationByteLength: () => 0,
-    operationByteAt: () => 0,
-    releaseOperationBytes() {},
-    open: empty,
-    openAsyncStart: notSupported,
-    write: empty,
-    writeSync: () => 0,
-    close: empty,
-    closeSync: () => 0,
-    loadImageAsyncStart: notSupported,
-    loadFontAsyncStart: notSupported,
+  api.errorResult = (error) => fileErrorResult(error);
+  api.storeOperationBytes = (value) => storeOperationBytes(bytesOf(value));
+  api.operationBytes = (value) => (typeof value === 'number' ? getOperationBytes(value) : bytesOf(value));
+  api.operationByteLength = (id) => getOperationBytes(id).length | 0;
+  api.operationByteAt = (id, index) => getOperationBytes(id)[index | 0] | 0;
+  api.releaseOperationBytes = (id) => {
+    fileOperationBytes.delete(id | 0);
   };
+
+  const complete = (requestId, resultId) => globalThis.__teavmFileComplete?.(requestId, resultId);
+
+  api.open = (pathBytes, modeBytes) => {
+    const path = decodeBytes(pathBytes);
+    const mode = decodeBytes(modeBytes) || 'read';
+    const existing = memoryFiles.get(path);
+    if (existing) return fileOkResult(existing);
+    if (mode === 'write' || mode === 'append') return fileOkResult(new Uint8Array(0));
+    return fileErrorResult(new Error(`File not found: ${path}`));
+  };
+
+  api.openAsyncStart = (requestId, pathBytes, modeBytes) => {
+    const path = decodeBytes(pathBytes);
+    const mode = decodeBytes(modeBytes) || 'read';
+    const existing = memoryFiles.get(path);
+    if (existing || mode === 'write' || mode === 'append') {
+      complete(requestId, storeOperationBytes(fileOkResult(existing ?? new Uint8Array(0))));
+      return;
+    }
+    complete(requestId, storeOperationBytes(fileErrorResult(new Error(`File not found: ${path}`))));
+  };
+
+  const statusOk = () => fileOkResult(new Uint8Array(0));
+  api.write = (pathBytes, data) => {
+    memoryFiles.set(decodeBytes(pathBytes), bytesOf(data));
+    return statusOk();
+  };
+  api.writeSync = (pathBytes, data) => {
+    memoryFiles.set(decodeBytes(pathBytes), bytesOf(data));
+    return storeOperationBytes(statusOk());
+  };
+  api.close = (pathBytes, _modeBytes, data) => {
+    if (data != null) memoryFiles.set(decodeBytes(pathBytes), bytesOf(data));
+    return statusOk();
+  };
+  api.closeSync = (pathBytes, _modeBytes, data) => {
+    if (data != null) memoryFiles.set(decodeBytes(pathBytes), bytesOf(data));
+    return storeOperationBytes(statusOk());
+  };
+
+  const assetNotSupported = (requestId) => complete(requestId, storeOperationBytes(fileErrorResult(new Error('assets are not supported'))));
+  api.loadImageAsyncStart = assetNotSupported;
+  api.loadFontAsyncStart = assetNotSupported;
+
+  imports.teavmFile = api;
 }
 
 const stdin = encoder.encode(flags.input ?? '');
@@ -199,7 +270,13 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 } catch (error) {
-  trap = flags.trace ? String(error?.stack ?? error) : String(error?.message ?? error);
+  // Reading `.message` on a Java exception calls back into the module (its `toString`), which can
+  // itself trap when the throwable's fields are odd — so never let that hide the original failure.
+  try {
+    trap = flags.trace ? String(error?.stack ?? error) : String(error?.message ?? error);
+  } catch {
+    trap = 'the program threw, and the exception could not be rendered (its toString trapped)';
+  }
 }
 const runMs = performance.now() - t0;
 

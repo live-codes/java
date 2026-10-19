@@ -26,28 +26,29 @@ Measured on `corpus/` (145 programs, run in Chrome):
 
 | | |
 |---|---|
-| Pass | **144 / 145** |
+| Pass | **145 / 145** |
 | Compile | **145 / 145** |
-| "Works on Doppio, fails here" (regressions) | **1** |
+| "Works on Doppio, fails here" (regressions) | **0** |
 | "Fails on both engines" | **0** |
 
-Measured on a full run. Every program compiles, and **every remaining failure is a regression** —
-there is no "broken on both engines" left to hide behind.
+Measured on a full run. Every program compiles **and runs identically to the current engine** — there
+is no regression left and no "broken on both engines" hiding behind one.
 
 Every class-library addition below (`String.lines()`, `Matcher.results()`, the `%e`/`%E` and `%n` format
 conversions, the `DecimalFormatSymbols` clone, the `suppressed` field, `Character.UnicodeBlock`,
-`Duration.toXxxPart()`, the division helper) and all five compiler patches
+`Duration.toXxxPart()`, the division helper, and the three file-system pieces — the temp directory, the
+Java 10 `Reader.transferTo` and idempotent `createDirectories`) and all five compiler patches
 (`CompilerResourceSupplier`, `ClassMetadataRequirements`, `DivisionCheckTransformer`,
 `WasmGCVirtualTableBuilder` + the `Compiler` listener, `BaseWasmGenerationVisitor`) are separately
 confirmed by running the affected programs and diffing the output against JDK 25 — `regex-groups`,
 `var-textblock`, `text-block-more`, `stringformat`, `parse-format`, `string-format-more`, `io-writers`,
 `exceptions-suppressed`, `char-classes`, `instant-duration`, `reflection-members`, `reflection`,
-`exceptions`, `enum-map-set`, `exceptions-stacktrace`, `exception-propagation` and
-`exceptions-finally` all pass.
+`exceptions`, `enum-map-set`, `exceptions-stacktrace`, `exception-propagation`, `exceptions-finally`
+and `file-io` all pass.
 
-The headline is the regression count, not the pass count: **one** of the 145 works today on the
-current engine and does not work here, and that one is deliberate (`file-io` — a browser has no
-filesystem). Every other program produces the JDK's output byte for byte.
+The headline is the regression count, not the pass count, and it is now **zero**: every program in
+the corpus produces the current engine's output, and file I/O — creating, writing, renaming, reading,
+listing and deleting — works against an in-memory filesystem that lives inside the module (§4c).
 
 **On Doppio it is not close in the other direction.** Doppio cannot run `records`,
 `switch-expression`, `String.repeat`, or text blocks at all (JDK 8 javac), and mis-dispatches
@@ -244,6 +245,16 @@ invalid-wasm fault in §4b.
 
 ### 4c. Runtime class library — fixable here, one class at a time
 
+**File I/O works, in memory.** TeaVM 0.14.1 ships a complete `java.nio.file` implementation backed by
+an in-memory filesystem (`org.teavm.runtime.fs.memory.*`) that the WasmGC backend uses by default — it
+just started empty, so the first thing any file program does failed. Three class-library changes made it
+usable (§5): pre-create `/tmp` in the virtual filesystem (so `createTempFile` works), add the Java 10
+`Reader.transferTo` (so `Files.readString`/`writeString`/`copy` even *compile*), and make
+`Files.createDirectories` idempotent for a one-component path. The result is that create, write,
+append, read, rename, copy, list, delete and the `java.io` streams all match the JDK, and the
+filesystem is **per run** — it lives inside the module, so nothing persists to the next run. Details and
+the exact probe are in `patches/README.md`.
+
 | Missing / broken | Programs |
 |---|---|
 | ~~`Matcher.results()`~~ — **fixed here** | `regex-groups` now passes. `TMatcher` vendored (§5); the body continues from the matcher's current position like the JDK does |
@@ -333,6 +344,9 @@ class-library classes.
    | `java/lang/TCharacter` | `Character.Subset` and `Character.UnicodeBlock` appended — neither exists upstream. The 339 block constants and their ranges are **generated from the JDK** by `scripts/gen-unicode-blocks.java`, so `of()` agrees with the JDK exactly (including code points in no block, and the surrogate ranges) |
    | `org/threeten/bp/Duration` | the six Java 9 `toXxxPart()` accessors added — this is the package `java.time` is converted from, so they were missing from the Java API entirely (§2) |
    | `org/teavm/classlib/impl/math/Division` | **new** class (not upstream) — `div`/`rem` for int/long that throw on a zero divisor and special-case `MIN_VALUE / -1`; the target of `DivisionCheckTransformer` (item 4) |
+   | `org/teavm/runtime/fs/memory/InMemoryVirtualFileSystem` | one line in the constructor creates `/tmp`, because `createTempFile` starts in `java.io.tmpdir` and the virtual filesystem starts empty — without it every temp-file program failed with "Directory does not exist" |
+   | `java/io/TReader` | the Java 10 `transferTo(Writer)` added. TeaVM's own `TFiles.readString`/`writeString`/`copy` call it, so without it those three did not compile against the SDK |
+   | `java/nio/file/TFiles` | `createDirectories` swallows `FileAlreadyExistsException` for a one-component path, as the JDK does — `Files.createDirectories(existingDir)` threw instead of being a no-op |
 
    `TCharacter` is the one vendored class with substantial *new API* rather than a fix, and its data is
    the JDK's, not hand-typed: run `java scripts/gen-unicode-blocks.java` and paste the output between
@@ -568,7 +582,7 @@ general form of the fix rather than another forced method.
 
 | Item | What it takes |
 |---|---|
-| *(nothing)* | No program in the corpus fails against the JDK except the deliberate `file-io`. The five compiler faults this document tracks — division, class names, the `toString` slot, the general vtable slot and the dead sibling return — are all fixed (§5) |
+| *(nothing)* | The corpus is at **145/145** with zero regressions. Every fault this document tracks is fixed (§5): the five compiler ones (division, class names, the `toString` slot, the general vtable slot, the dead sibling return) and the file-system gaps that made `file-io` fail |
 
 If the engine is to be pushed further, the corpus is the first place to look: it samples 145 programs,
 which is a fraction of the API. The fault families worth watching for are the ones this session found

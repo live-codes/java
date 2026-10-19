@@ -340,6 +340,43 @@ traps. That is a separate generator fault — `FINDINGS.md` §4b has the disasse
 
 This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above).
 
+## File I/O: an in-memory filesystem that actually works
+
+TeaVM 0.14.1 already *has* a full `java.nio.file` implementation and an in-memory filesystem
+(`org.teavm.runtime.fs.memory.*`), and the wasmGC backend uses it by default. It just could not be
+used: the filesystem starts empty, so the very first thing that almost any file program does —
+`Files.createTempFile`, or `Files.createDirectories` on a path like `/tmp` — failed. Three small
+pieces fix that, and they are **class-library** changes, so they need only the two archives rebuilt
+(~30 s), not a compiler rebuild.
+
+1. **`InMemoryVirtualFileSystem.java`** — the class is TeaVM's, vendored to add one line in the
+   constructor: `root.createDirectory("tmp")`. `File.createTempFile` and `Files.createTempFile` start
+   from `System.getProperty("java.io.tmpdir")`, which is `/tmp` (`TSystem.getTempDir()`), and without
+   it they fail with `Directory does not exist` before the program does anything.
+2. **`TReader.java`** — vendored to add `transferTo(Writer)`, the **Java 10** method. TeaVM's class
+   library predates it, but its own `TFiles.readString`, `writeString` and `copy` call it, so those
+   three failed to *compile* against the generated SDK with
+   `Method java.io.BufferedReader.transferTo(Ljava/io/Writer;)J was not found`.
+3. **`TFiles.java`** — vendored to make `createDirectories` idempotent. For a path with one component
+   (`/tmp`, a relative `"data"`) TeaVM delegates straight to `createDirectory` without swallowing
+   `FileAlreadyExistsException`, so `Files.createDirectories(existingDir)` — the usual `mkdir -p`
+   idiom — threw where the JDK is a no-op. The multi-component branch already tolerated it.
+
+**Effect, measured.** `file-io` matches, and the corpus is **145/145**. A probe exercising the whole
+surface matches the JDK line for line: `createDirectories` (twice, the second time a no-op), `write`,
+`writeString`, append, `readString`, `size`, `move` (rename), `copy`, `list`, `delete` +
+`DirectoryNotEmptyException`, `FileWriter`/`FileReader`, `File.length`/`getName`/`getParent`,
+`FileNotFoundException`. The only differences are platform ones — `/` vs `\` in a printed parent path,
+and `new File("/tmp").isAbsolute()` — which is expected: the browser is POSIX and the comparison JDK
+used here is Windows.
+
+**What it means in a browser.** The filesystem lives *inside the wasm module*, so it is **per run**:
+create, write, rename and read all work, and nothing survives to the next run. That is the honest
+answer for a playground. Persisting across runs would mean mirroring it out through the `teavmFile`
+host bridge (which the worker already implements an in-memory version of, and which the fork's
+`TFileSystemBridge` can drive — it is currently not wired into `TFile`, so the virtual filesystem is
+the only one in play).
+
 ## Core patch: the vtable builder (a dropped implementation has no slot to point at)
 
 Two pieces: `WasmGCVirtualTableBuilder.java` here, a replacement for TeaVM core's (shadowed through
@@ -490,3 +527,4 @@ dropped safely, and for this shape that is enough.
 **144/145** — every program in it now matches the JDK except the deliberately dropped `file-io`.
 
 This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above).
+

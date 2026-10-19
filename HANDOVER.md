@@ -37,13 +37,15 @@ Measured on `corpus/` (145 programs), last full run:
 
 | | |
 |---|---|
-| Pass | **144 / 145** |
+| Pass | **145 / 145** |
 | Compile | **145 / 145** |
-| Regressions (work on Doppio, fail here) | **1** |
+| Regressions (work on Doppio, fail here) | **0** |
 | Fails on both engines | **0** |
 
-The only failure is `file-io`, and it is **deliberate**: a browser has no filesystem, so the harness
-drops it. Every other program in the corpus produces the JDK's output byte for byte.
+**Every program in the corpus compiles and runs identically to the current engine.** There is nothing
+deliberately dropped any more either: file I/O works against an in-memory filesystem inside the module
+(`FINDINGS.md` §4c, `patches/README.md` "File I/O"), including create, write, append, read, rename,
+copy, list and delete.
 
 Where each fixed cluster lives is in `FINDINGS.md` §4. The short version:
 
@@ -53,10 +55,10 @@ Where each fixed cluster lives is in `FINDINGS.md` §4. The short version:
   metadata, the vtable slots (three programs) and the dead sibling return. The fork's
   `compiler/src/patches/java` source set shadows core classes, so a core fix needs no fork patch point.
 
-Git: `D:\DevWork\live-codes\java` is **clean** at the tip of `main` (seventeen commits this session: the
+Git: `D:\DevWork\live-codes\java` is **clean** at the tip of `main` (eighteen commits this session: the
 float cluster, exceptions/stack-trace, `char-classes`, the committed artifacts, `instant-duration`, the
 Docker build recipe, the reflection compiler patch, the UPSTREAM refresh, the division fix, the
-class-name metadata fix, two vtable fixes, the scoping of the last fault and its fix).
+class-name metadata fix, two vtable fixes, the scoping of the last fault and its fix, and file I/O).
 
 ---
 
@@ -97,6 +99,7 @@ Worker protocol (do not break it; the LiveCodes wiring depends on this shape):
 
 | Commit | What |
 |---|---|
+| the file-system commit | **File I/O.** TeaVM already ships a full `java.nio.file` implementation over an in-memory filesystem; it just started empty. Three class-library pieces make it usable: the temp directory pre-created in `InMemoryVirtualFileSystem` (so `createTempFile` works at all), the Java 10 `Reader.transferTo` added to `TReader` (its own `TFiles.readString`/`writeString`/`copy` call it, so those did not even compile), and `TFiles.createDirectories` made idempotent for a one-component path. `file-io` matches; the corpus is **145/145**. Only the two archives need rebuilding (~30 s) |
 | the last-codegen commit | **The dead sibling return.** `try { return } finally { return }` emitted two `i32.const` values in a `(result i32)` function: the try/finally is folded away (correctly — the finally's `return` wins) but the AST kept **two returns**, and the statement emitters walk a list verbatim. The wasm backend now stops at a *directly following* return or throw — only a direct one: dropping statements after a *block* that returns broke `CharsetEncoder.encode`. That took `exceptions-finally` to matching the JDK and the corpus to **144/145** |
 | the listener commit | **The general vtable fix.** Same fault as the one above, one instance further on: `exceptions-stacktrace` and `exception-propagation` read a slot whose implementation (`java.lang.String.equals`) had been dropped, because a call site names the *receiver's* type. `Compiler.java` now reaches the target of every virtual call in every reached method — a method a call site names must exist out of line, since the call may read a vtable slot — which settles as it cascades. Both match JDK 25; the corpus is at 143/145 |
 | the vtable commit | **The dropped-implementation vtable fault.** A virtual call to an *inherited* method read a slot that was never written: TeaVM records a slot's implementor only for a *reachable* method, and `Object.toString`/`Enum.toString` are never called out of line (call sites are devirtualised or intrinsified), so the dependency analysis drops them. `patches/WasmGCVirtualTableBuilder.java` (a core shadow) drops the `isVirtual` filter — keyed by the call site's *written* reference, i.e. the receiver's static type — and the fork's `Compiler.java` reaches those two implementations explicitly. `enum-map-set` now matches JDK 25; the general form of the fault is what still breaks the two stack-trace programs |
@@ -110,11 +113,11 @@ Worker protocol (do not break it; the LiveCodes wiring depends on this shape):
 | the exceptions commit | `TThrowable.suppressed` is never initialised → vendor it with lazy accessors; and enable the **stack deobfuscator** in the worker, vendoring `compiler.wasm-deobfuscator.wasm`, so `getStackTrace()` returns real frames |
 | `e1a9c29` | **The float cluster.** Found that `DecimalFormatSymbols.clone()` returns a vtable-less object under this WasmGC backend, vendored `TDecimalFormatSymbols` with an explicit copy, and vendored `TFormatter` with the missing `%e`/`%E` and `%n` conversions. Added `scripts/run-program.mjs` |
 
-Net: **130/145 → 144/145**, **14 → 1 regressions** (and that one is deliberate), **compile 143/145 →
+Net: **130/145 → 145/145**, **14 → 0 regressions**, **compile 143/145 →
 145/145**, nothing newly broken.
 Closed `stringformat`, `parse-format`, `string-format-more`, `io-writers`, `exceptions-suppressed`,
 `char-classes`, `instant-duration`, `reflection-members`, `exceptions`, `reflection`, `enum-map-set`,
-`exceptions-stacktrace`, `exception-propagation`, `exceptions-finally`.
+`exceptions-stacktrace`, `exception-propagation`, `exceptions-finally`, `file-io`.
 
 The single most valuable thing added is `scripts/run-program.mjs` — see §6. It gives named Java stack
 traces for a wasm trap, which is what actually cracked both clusters after several wrong attributions
@@ -469,13 +472,17 @@ rewritten in minutes.
 
 ## 11. Remaining work, ranked
 
-1. **Decide the branch in §6** — there is no codegen fault left to fix, so this is now only "wire
-   LiveCodes or keep extending the corpus". Nothing in the class library is missing an API.
+1. **Decide the branch in §6** — the corpus is green (145/145, zero regressions), so there is no known
+   defect left to fix. This is now only "wire LiveCodes, extend the corpus, or publish".
 2. **Extend the corpus** if the engine is to be pushed further — 145 programs sample a fraction of the
    API, and every fault this session found arrived as a *shape* rather than a missing feature. The two
    families worth watching are a virtual call through a vtable slot, and anything depending on a method
-   the dependency analysis decided was unreachable.
-3. **`file-io`** — deliberate; there is no filesystem model in a browser. Do not "fix" it.
+   the dependency analysis decided was unreachable. A third, from the file-I/O round: the class library
+   can be missing *newer* JDK methods (`Reader.transferTo` was absent, so `Files.readString` did not
+   even compile) — check that before blaming the compiler.
+3. **File I/O is per run** — the filesystem lives inside the module and starts empty. Persisting across
+   runs would mean wiring `TFileSystemBridge` into `TFile` and mirroring through the worker's
+   `teavmFile` bridge; `patches/README.md` ("File I/O") has the details.
 4. **Publishing** `@live-codes/java-wasm` (version `0.0.1`, unpublished) — decide the SDK-patch
    strategy first: we ship build outputs plus vendored classlib classes, not a rewritten third-party
    binary (FINDINGS §5). All five artifacts are in the repo now, and `assets/` is the source of truth,

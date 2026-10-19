@@ -32,11 +32,11 @@ Raw results land in `corpus/results.json` (`results-only.json` for a filtered ru
 Programs must print deterministic output — sort maps and sets before printing, or the two engines
 differ for reasons that have nothing to do with correctness.
 
-## Result: 143/145 pass, and both **remaining failures are regressions**
+## Result: 144/145 pass, and the one failure is deliberate
 
-java-wasm runs 143 of 145. That hides the number that matters for a switch: **both failures work
-today on the current engine** — there is no "broken on both engines" left. On this corpus that is a
-1.4% regression rate.
+java-wasm runs 144 of 145. Every program but one produces the JDK's output byte for byte; the
+exception is `file-io`, which is dropped on purpose because a browser has no filesystem. Every
+regression the corpus found — all 16 — is closed except that deliberate one, a 0.7% rate.
 
 Recent closures. `stringformat`, `parse-format` and `string-format-more` were one bug: every
 `DecimalFormat` clones its `DecimalFormatSymbols`, and `Object.clone()` produces an object with no
@@ -67,14 +67,14 @@ Timings for the whole set: init 0.3–2 s, javac 1–13 s, **wasm generation 51�
 The spread is run-to-run variance on one machine (load-dependent), not a spread across programs;
 generation dominates either way.
 
-### Regressions — work on Doppio, fail on java-wasm (16 found, 2 remain)
+### Regressions — work on Doppio, fail on java-wasm (16 found, 1 remains, deliberate)
 
 | # | Programs | Failure | Cause |
 |---|---|---|---|
 | 1 | ~~`stringformat`, `parse-format`, `string-format-more`~~ — fixed | — | every `DecimalFormat` clones its `DecimalFormatSymbols`; `Object.clone()` gives the copy no vtable under this WasmGC backend, so the first virtual call on it trapped. Worked around in the class library (§4b/§5 of `FINDINGS.md`) |
 | 2 | ~~`reflection-members`~~ — fixed; ~~`reflection`~~ — fixed | — | class and field reflection always worked; **method** metadata was empty because TeaVM preserves only the members a `ReflectionSupplier` lists and the fork's listed all fields but no methods. Fixed by `patches/CompilerResourceSupplier.java`. `reflection`'s last line needed a second fix: `Class.forName` could only see classes whose *name* was emitted, and names were decided per class from statically known `Class` values, so `getClass().getName()` returned `null` and `forName` missed anything reached dynamically. Fixed by `patches/ClassMetadataRequirements.java` |
 | 3 | ~~`exceptions`~~ — fixed | — | integer division by zero trapped in wasm instead of throwing `ArithmeticException`. `DivisionCheckTransformer` rewrites int/long `DIVIDE`/`MODULO` to a class-library helper that checks the divisor (and `MIN_VALUE / -1`); verified with a 52-case differential probe |
-| 4 | `exceptions-finally` | `expected 1 elements on the stack for fallthru` | `try { return } finally { return }` compiles to invalid wasm |
+| 4 | ~~`exceptions-finally`~~ — fixed | — | `try { return } finally { return }` compiled to invalid wasm: the try/finally folds away (correctly — the finally's `return` wins) but the AST kept **two returns**, and the wasm statement emitters walk a list verbatim, so the second return's value landed on the stack. Fixed in `patches/BaseWasmGenerationVisitor.java` by stopping at a directly following return (not a recursive "always exits" check, which broke `CharsetEncoder.encode`) |
 | 5 | ~~`exceptions-suppressed`~~ — fixed | — | `Throwable.suppressed` is never initialised (TeaVM constructs through the `@Rename("<init>")` `init(…)` methods), so `addSuppressed` dereferenced null. `TThrowable` vendored with lazy accessors |
 | 6 | ~~`exceptions-stacktrace`, `exception-propagation`~~ — fixed | — | `x.getMethodName().equals("main")` inside a stream lambda was dispatched through a vtable slot whose implementation (`java.lang.String.equals`) had been dropped — the general form of the `enum-map-set` fault above, fixed by the same `DependencyListener` that reaches every virtual call target. The frame data was always fine |
 | 7 | ~~`char-classes`~~ — fixed | — | `Character.UnicodeBlock` (and `Character.Subset`) are absent from TeaVM's class library. `TCharacter` vendored, the nested types appended, and the block table generated from the JDK |
@@ -113,7 +113,6 @@ wrong: `interfaces` throws `NullPointerException` where java-wasm prints the rig
 
 ## Caveat
 
-145 hand-written programs still only sample the API, and they were written to probe gaps, so 1.4%
-is not a prediction of the real-world rate. It is measured rather than inferred — and both remaining
-failures are narrow: a `return` inside a `finally` (rare and discouraged) and file I/O (dropped on
-purpose).
+145 hand-written programs still only sample the API, and they were written to probe gaps, so 0.7%
+is not a prediction of the real-world rate. It is measured rather than inferred — and the single
+remaining failure is file I/O, which is dropped on purpose.

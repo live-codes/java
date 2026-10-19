@@ -441,3 +441,52 @@ generator on the receiver's *static* type), which is why this failure is shape-d
 unrelated edits.
 
 This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above).
+
+## Core patch: `BaseWasmGenerationVisitor` (a dead sibling return)
+
+`BaseWasmGenerationVisitor.java` here is a replacement for
+`org.teavm.backend.wasm.generate.methods.BaseWasmGenerationVisitor` in TeaVM core, shadowed through
+`compiler/src/patches/java` like the two above.
+
+**The bug.** `try { return 1; } finally { return 2; }` produced a module V8 rejects:
+`expected 1 elements on the stack for fallthru, found 2`. The generated function was
+
+```wat
+(func $Main::overrideReturn (result i32)
+  (call_ref $16 (global $Main@initializer))
+  (i32.const 2)
+  (i32.const 2))
+```
+
+— the try/finally folded away, correctly (a `return` in a `finally` always wins), but **two returns**
+left in the AST. The JS backend, which renders the same tree, makes it obvious:
+
+```js
+Main_overrideReturn = () => { Main_$callClinit(); return 2; return 2; }
+```
+
+The statement emitters walk a list verbatim, so the second return's value lands on the wasm stack.
+
+**The fix.** Stop at a return or a throw when emitting a statement sequence — in `visitMany` and in
+`visit(SequentialStatement)`, which is what a method body actually is:
+
+```java
+for (var part : statements) {
+    accept(part);
+    if (part instanceof ReturnStatement || part instanceof ThrowStatement) {
+        break;
+    }
+}
+```
+
+**Deliberately not recursive**, and that is the interesting part. The obvious version — "does this
+statement always exit?" through nested blocks and if/else — fixed `exceptions-finally` but immediately
+broke `java.nio.charset.CharsetEncoder::encode` (`expected 1 elements on the stack for fallthru, found
+0`): the generator still expects to *see* the statements after a block that contains a return, because
+its block typing assumes the walk reaches the end of every list. Only a *direct sibling* return can be
+dropped safely, and for this shape that is enough.
+
+**Effect, measured.** `exceptions-finally` matches JDK 25 byte for byte and the corpus goes 143/145 →
+**144/145** — every program in it now matches the JDK except the deliberately dropped `file-io`.
+
+This changes the **compiler**, so it needs `:compiler:optimizeWasmGC` (the Docker recipe above).

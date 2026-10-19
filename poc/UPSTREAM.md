@@ -160,13 +160,21 @@ MATCH
 
 (It "traps" only because the package's fiber runtime needs `SIMPLE` — `src/worker-java.ts` says as
 much: at `ADVANCED` the completion callback never fires, which is also why the browser worker cannot
-just use the higher level.) So the search space is the Simple-path optimizer, not the generator and not
-the backend: `TeaVM.inline()` returns immediately at `SIMPLE`, and the passes that do run leave a dead
-expression that the Advanced pipeline's inlining never creates.
+just use the higher level.) So the search space is the Simple-path decompiler and the statement
+emitter: `TeaVM.inline()` returns immediately at `SIMPLE`, the fold leaves two returns in the AST, and
+the emitter walks the list verbatim. The Advanced pipeline's inlining never creates that shape.
 
-It is reachable from here now — `compiler/src/patches/java` shadows core classes, so an optimizer or
-decompiler fix can be carried in this repo — but it has not been attempted. `FINDINGS.md` §4b has the
-fork's own account.
+**Fixed for this package** by `patches/BaseWasmGenerationVisitor.java` (see `patches/README.md`): the
+statement-sequence emitter stops at a return or a throw, so the dead second return is never emitted.
+The JS backend shows the same AST plainly, which is worth knowing for triage:
+
+```js
+Main_overrideReturn = () => { Main_$callClinit(); return 2; return 2; }
+```
+
+The fix must **not** be recursive — an "always exits" test through nested blocks fixed this program and
+broke `java.nio.charset.CharsetEncoder::encode` (`... found 0`), because the generator's block typing
+expects the walk to reach the end of every list. Only a direct sibling return can be dropped.
 
 **Impact is narrow**: a `return` inside a `finally` is rare and universally discouraged, and every
 other try/finally shape works.

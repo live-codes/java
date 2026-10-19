@@ -26,9 +26,9 @@ Measured on `corpus/` (145 programs, run in Chrome):
 
 | | |
 |---|---|
-| Pass | **143 / 145** |
+| Pass | **144 / 145** |
 | Compile | **145 / 145** |
-| "Works on Doppio, fails here" (regressions) | **2** |
+| "Works on Doppio, fails here" (regressions) | **1** |
 | "Fails on both engines" | **0** |
 
 Measured on a full run. Every program compiles, and **every remaining failure is a regression** —
@@ -36,17 +36,18 @@ there is no "broken on both engines" left to hide behind.
 
 Every class-library addition below (`String.lines()`, `Matcher.results()`, the `%e`/`%E` and `%n` format
 conversions, the `DecimalFormatSymbols` clone, the `suppressed` field, `Character.UnicodeBlock`,
-`Duration.toXxxPart()`, the division helper) and all four compiler patches
+`Duration.toXxxPart()`, the division helper) and all five compiler patches
 (`CompilerResourceSupplier`, `ClassMetadataRequirements`, `DivisionCheckTransformer`,
-`WasmGCVirtualTableBuilder` + the `Compiler` listener) are separately
+`WasmGCVirtualTableBuilder` + the `Compiler` listener, `BaseWasmGenerationVisitor`) are separately
 confirmed by running the affected programs and diffing the output against JDK 25 — `regex-groups`,
 `var-textblock`, `text-block-more`, `stringformat`, `parse-format`, `string-format-more`, `io-writers`,
 `exceptions-suppressed`, `char-classes`, `instant-duration`, `reflection-members`, `reflection`,
-`exceptions`, `enum-map-set`, `exceptions-stacktrace` and `exception-propagation` all pass.
+`exceptions`, `enum-map-set`, `exceptions-stacktrace`, `exception-propagation` and
+`exceptions-finally` all pass.
 
-The headline is the regression count, not the pass count: 2 of the 145 work today on the current
-engine and do not work here. That is the number that decides whether this can replace Doppio, and it
-is why this is not yet a straight swap.
+The headline is the regression count, not the pass count: **one** of the 145 works today on the
+current engine and does not work here, and that one is deliberate (`file-io` — a browser has no
+filesystem). Every other program produces the JDK's output byte for byte.
 
 **On Doppio it is not close in the other direction.** Doppio cannot run `records`,
 `switch-expression`, `String.repeat`, or text blocks at all (JDK 8 javac), and mis-dispatches
@@ -172,26 +173,26 @@ and — for the last one — a raw `TypeError` with no diagnostic at all.
 | `Annotation` emitted extending itself | every `@interface` fails with cyclic inheritance |
 | Annotations emitted with no elements | **any** use of `@SuppressWarnings` crashed the compiler |
 
-### 4b. Code generation — TeaVM core, worked around or unfixed
+### 4b. Code generation — TeaVM core, all worked around
 
-Two of these are worked around in the class library/compiler, because the check can be expressed in
-Java; the rest need the wasm backend itself.
+All of these are now fixed or worked around — three in the class library, four by compiler patches, none
+left open.
 
-- **`try { return x; } finally { return y; }` emits invalid wasm**: `expected 1 elements on the stack
-  for fallthru, found 2`. Generation succeeds; V8 rejects the module. The generated function shows why
-  — the try/finally is folded away (correctly: the finally's `return` always wins) but a stray value
-  expression is left behind:
+- **`try { return x; } finally { return y; }` emitted invalid wasm**: `expected 1 elements on the stack
+  for fallthru, found 2`. **Fixed** (§5): the try/finally is folded away (correctly — the finally's
+  `return` always wins) but the AST kept **two returns**, and the statement emitters walk a list
+  verbatim, so the second return's value landed on the wasm stack:
   ```wat
   (func $Main::overrideReturn (result i32)
-    (call_ref $16 (global.get $Main@initializer))
+    (call_ref $16 (global $Main@initializer))
     (i32.const 2)
     (i32.const 2))
   ```
-  Narrow in a second way too: it is a **Simple-pipeline** fault. At `ADVANCED`
-  (`TEAVM_OPT_LEVEL=ADVANCED node scripts/run-program.mjs exceptions-finally --jdk`) the same source
-  compiles to a valid module that matches the JDK — the package cannot use that level, though, because
-  its fiber runtime needs `SIMPLE` (`src/worker-java.ts`). Every other try/finally shape works, and a
-  `return` in a `finally` is rare and discouraged.
+  The wasm backend now stops at a return or throw when emitting a statement sequence — and only a
+  *direct sibling* one, because dropping statements after a *block* that returns broke
+  `CharsetEncoder.encode` (`... found 0`): the generator's block typing expects the walk to reach the
+  end of every list. (At `ADVANCED` this shape was always valid; the package needs `SIMPLE` for its
+  fiber runtime, which is how the fault was first narrowed.)
 - **`ArithmeticException` on integer division by zero** is not raised — the wasm `i32.div_s` traps
   instead, so `catch (ArithmeticException)` never runs. `MIN_VALUE / -1` traps too, where Java returns
   `MIN_VALUE`. **Worked around here**: `DivisionCheckTransformer` rewrites int/long
@@ -273,8 +274,8 @@ option in the worker; none of them needed the compiler rebuilt.
 
 ## 5. What we patch
 
-Seven files, all drop-in replacements in the fork (two of them of TeaVM core, not the fork — items 4
-and 6; item 6 also needs two lines in the fork's own `Compiler.java`), plus a set of vendored
+Eight files, all drop-in replacements in the fork (three of them of TeaVM core, not the fork — items 4,
+6 and 7; item 6 also needs two lines in the fork's own `Compiler.java`), plus a set of vendored
 class-library classes.
 `patches/README.md` has the details and reproduction steps; the short version:
 
@@ -312,7 +313,14 @@ class-library classes.
    *virtual* call in every reached method (a method a call site names must exist out of line, because
    the call may read a vtable slot), plus `Object.toString`/`Enum.toString`, which no call site names
    because the reference at those sites is the subclass's.
-7. **Vendored class-library classes**, in `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...`
+7. **`BaseWasmGenerationVisitor.java`** — the third **TeaVM core** shadow. The statement-sequence
+   emitters walk a list verbatim, so a statement the decompiler left after an unconditional exit still
+   got emitted — and a second `return` puts a second value on the wasm stack. It now stops at a
+   *directly following* return or throw (`visitMany` and `visit(SequentialStatement)`, which is what a
+   method body is). Deliberately **not** recursive: dropping statements after a *block* that returns
+   broke `CharsetEncoder.encode`, because the generator's block typing expects the walk to reach the end
+   of every list. See §4b.
+8. **Vendored class-library classes**, in `compiler/src/sharedClasslibEmu/java/org/teavm/classlib/...`
    and each listed by name in `prepareTeaVMClassLib`'s include list:
 
    | Class | Change |
@@ -332,7 +340,7 @@ class-library classes.
    JDK rather than assumed — `Subset.equals`/`hashCode` are **identity**-based, so `hashCode` is not
    `name.hashCode()`.
 
-8. **The stack deobfuscator**, which is not a patch but a loader option the worker now passes when it
+9. **The stack deobfuscator**, which is not a patch but a loader option the worker now passes when it
    instantiates a program, plus the `compiler.wasm-deobfuscator.wasm` artifact that makes it work
    (`scripts/fetch-teavm.mjs` vendors it; `scripts/build.mjs` copies it next to `compiler.wasm`). See
    §2: this is what turns `getStackTrace()` from TeaVM's stand-in frames into real ones.
@@ -560,11 +568,16 @@ general form of the fix rather than another forced method.
 
 | Item | What it takes |
 |---|---|
-| `exceptions-finally` | codegen: `try { return } finally { return }` emits invalid wasm — the last code-generation fault left. Backend work, or an upstream fix |
+| *(nothing)* | No program in the corpus fails against the JDK except the deliberate `file-io`. The five compiler faults this document tracks — division, class names, the `toString` slot, the general vtable slot and the dead sibling return — are all fixed (§5) |
 
-One fault remains, and it is in code generation rather than the class library, so it needs no bisecting
-first: `run-program.mjs --trace` names the trapping frame, `--emit` writes the module, and
-`wasm-dis` (`binaryen-version_133/bin/wasm-dis.exe`) turns it into readable wat with Java names.
+If the engine is to be pushed further, the corpus is the first place to look: it samples 145 programs,
+which is a fraction of the API. The fault families worth watching for are the ones this session found
+repeatedly — a virtual call through a vtable slot, and anything that depends on a method the dependency
+analysis decided was unreachable.
+
+`run-program.mjs --trace` names the trapping frame, `--emit` writes the module, and
+`wasm-dis` (`binaryen-version_133/bin/wasm-dis.exe`) turns it into readable wat with Java names. For a
+shape that only misbehaves in one pipeline, `TEAVM_OPT_LEVEL` compares levels.
 
 ### Closed this session (for the record)
 
@@ -575,7 +588,8 @@ also took the compile count to **145/145**), `reflection-members` (the `Compiler
 patch), `exceptions` (`DivisionCheckTransformer` + the `Division` helper), `reflection` (the
 `ClassMetadataRequirements` patch: its last line, `Class.forName`, now resolves), `enum-map-set`,
 `exceptions-stacktrace` and `exception-propagation` (the vtable fix: `WasmGCVirtualTableBuilder` plus
-the `Compiler` listener that reaches every virtual call target and `Object.toString`/`Enum.toString`).
+the `Compiler` listener that reaches every virtual call target and `Object.toString`/`Enum.toString`),
+and `exceptions-finally` (the wasm backend now stops at a direct return in a statement sequence — §4b).
 Each was verified by diffing the program's output against JDK 25, not just by the corpus going green.
 
 ### Beyond the class library

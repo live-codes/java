@@ -51,7 +51,10 @@ export interface CreateJavaRuntimeOptions {
   teavmBaseUrl?: string;
   /** Called with coarse engine progress. */
   onProgress?: (progress: JavaProgress) => void;
-  /** Keep the program's in-memory file system between runs (IndexedDB). Default: true. */
+  /**
+   * Keep the program's in-memory file system between runs (IndexedDB, shared per origin).
+   * Default: false — every run starts with an empty filesystem.
+   */
   persistFiles?: boolean;
   /**
    * Path semantics the module models. 'posix' (default) behaves like the browser and like Doppio did.
@@ -137,7 +140,7 @@ export async function createRuntime(options: CreateJavaRuntimeOptions = {}): Pro
   worker.postMessage({
     cmd: 'init',
     baseUrl: options.teavmBaseUrl ? resolveBase(options.teavmBaseUrl) : new URL('teavm/', base).href,
-    persistFiles: options.persistFiles !== false,
+    persistFiles: options.persistFiles === true,
   });
   await initialized;
 

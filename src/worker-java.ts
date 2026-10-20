@@ -113,7 +113,7 @@ let fileOperationNextId = 0;
  * instance, so between runs the host hands the previous snapshot back and keeps the latest one.
  */
 const FILE_STORAGE_KEY = 'livecodes.java.files';
-let persistFiles = true;
+let persistFiles = false;
 
 /**
  * IndexedDB, not localStorage: this code runs in a Web Worker, where localStorage does not exist.
@@ -484,7 +484,7 @@ self.onmessage = async (e: MessageEvent) => {
             throw new Error('java worker: baseUrl is required when loaded from a blob/data URL');
           }
         })();
-      persistFiles = (e.data as { persistFiles?: boolean }).persistFiles !== false;
+      persistFiles = (e.data as { persistFiles?: boolean }).persistFiles === true;
       await init(base);
       self.postMessage({ type: 'initialized', initMs: performance.now() - t0 });
     } catch (err) {

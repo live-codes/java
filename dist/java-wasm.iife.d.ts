@@ -40,7 +40,7 @@ export interface CreateJavaRuntimeOptions {
   teavmBaseUrl?: string;
   /** Called with coarse engine progress. */
   onProgress?: (progress: JavaProgress) => void;
-  /** Keep the program's in-memory file system between runs (IndexedDB). Default: true. */
+  /** Keep the program's in-memory file system between runs (IndexedDB, shared per origin). Default: false. */
   persistFiles?: boolean;
   /** Path semantics the module models: 'posix' (default) or 'windows'. */
   platform?: 'posix' | 'windows';

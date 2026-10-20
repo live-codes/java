@@ -252,7 +252,7 @@ usable (§5): pre-create `/tmp` in the virtual filesystem (so `createTempFile` w
 `Reader.transferTo` (so `Files.readString`/`writeString`/`copy` even *compile*), and make
 `Files.createDirectories` idempotent for a one-component path. The result is that create, write,
 append, read, rename, copy, list, delete and the `java.io` streams all match the JDK, and the
-filesystem lives inside the module, and it is now **persisted**: the module hands a snapshot to the host
+filesystem lives inside the module, and it can be **persisted** (opt-in, off by default): the module hands a snapshot to the host
 at the end of a run and asks for it back on first use, so a program's files survive to the next run
 (IndexedDB in the browser — localStorage does not exist in a Web Worker — and `TEAVM_FS_FILE` for the runner). The path semantics also have a switch
 — POSIX by default, Windows for `java.io.File` on request — though the nio layer stays POSIX, so that
@@ -615,7 +615,9 @@ Each was verified by diffing the program's output against JDK 25, not just by th
 
 - **LiveCodes wiring**: not started. `vendors.ts` + `lang-java-script.ts`, keeping the
   `livecodes.java.*` contract. Until then this is a package, not an engine a user can select.
-- **Publishing**: `@live-codes/java-wasm` is version `0.0.1` and unpublished. Decide the SDK-patch
-  strategy before publishing (§5: we ship build outputs, not a rewritten third-party binary).
+- **Publishing**: `@live-codes/java-wasm@0.1.0` is ready to publish — licence and third-party
+  notices, types, `sideEffects` and a `prepublishOnly` guard are in place, and the tarball is 4.26 MB.
+  The SDK-patch strategy is settled (§5: we ship build outputs plus vendored classlib classes, not a
+  rewritten third-party binary). Remaining: sign-off on the GPLv2+CE "corresponding source" wording.
 - **Scala** lives in a separate package (`@live-codes/scala-wasm`, JSPI-only, no stdin); a Doppio
   fallback belongs in LiveCodes' language config, not inside that package.

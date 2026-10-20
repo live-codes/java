@@ -505,9 +505,9 @@ the host at the end of a run and asks for it back on first use:
   `globalThis.teavmFile`: the module imports the object, but the class library's `@JSBody` helpers
   read the global, so without it saving silently did nothing.
 * The browser worker keeps it in IndexedDB (`livecodes-java`), not localStorage — this code runs in a Web Worker, where
-  localStorage does not exist; `createRuntime({ persistFiles: false })`
-  turns it off, which is what the corpus does so programs cannot see each other's files. The node runner
-  uses `TEAVM_FS_FILE=<path>` for the same purpose.
+  localStorage does not exist; persistence is off unless the host asks for it
+  (`createRuntime({ persistFiles: true })`), so programs cannot see each other's files by default. The
+  node runner uses `TEAVM_FS_FILE=<path>` for the same purpose.
 * `VirtualFileImpl` is vendored so its path walk accepts `\` as a separator as well as `/`.
 
 Verified by running the same program three times with `TEAVM_FS_FILE`: the first prints `written`, the

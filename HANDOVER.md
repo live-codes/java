@@ -45,8 +45,9 @@ Measured on `corpus/` (145 programs), last full run:
 **Every program in the corpus compiles and runs identically to the current engine.** There is nothing
 deliberately dropped any more either: file I/O works against an in-memory filesystem inside the module
 (`FINDINGS.md` §4c, `patches/README.md` "File I/O"), including create, write, append, read, rename,
-copy, list and delete — and it now **persists between runs** (snapshot through the host;
-IndexedDB in the browser — localStorage does not exist in a Web Worker — and `TEAVM_FS_FILE` for the runner). Path semantics have a switch too:
+copy, list and delete — and it **persists between runs** when the host opts in (`persistFiles: true`;
+off by default). The snapshot goes through the host: IndexedDB in the browser — localStorage does not
+exist in a Web Worker — and `TEAVM_FS_FILE` for the runner. Path semantics have a switch too:
 POSIX by default (like the browser and Doppio), Windows for `java.io.File` on request, with the nio
 layer staying POSIX — so that switch is partial and documented as such.
 
@@ -102,7 +103,7 @@ Worker protocol (do not break it; the LiveCodes wiring depends on this shape):
 
 | Commit | What |
 |---|---|
-| the persistence commit | **Persistence and the platform switch.** The module serialises its in-memory filesystem at the end of a run (`teavm_fs_snapshot`, exported) and restores it lazily on first `getFile` — lazily because the filesystem is created from `DefaultFileSystem`'s static initializer, before charsets exist, and encoding there traps. Hosts keep the snapshot in IndexedDB (the worker cannot use localStorage) or `TEAVM_FS_FILE`; the corpus sets `persistFiles: false` so programs cannot see each other's files. `isWindows()` now reads a host-set flag (POSIX default, Windows opt-in for `java.io.File`), and the comparison normalises path separators. 145/145 still |
+| the persistence commit | **Persistence and the platform switch.** The module serialises its in-memory filesystem at the end of a run (`teavm_fs_snapshot`, exported) and restores it lazily on first `getFile` — lazily because the filesystem is created from `DefaultFileSystem`'s static initializer, before charsets exist, and encoding there traps. Hosts keep the snapshot in IndexedDB (the worker cannot use localStorage) or `TEAVM_FS_FILE`; the corpus sets `persistFiles: false` (now the default) so programs cannot see each other's files. `isWindows()` now reads a host-set flag (POSIX default, Windows opt-in for `java.io.File`), and the comparison normalises path separators. 145/145 still |
 | the file-system commit | **File I/O.** TeaVM already ships a full `java.nio.file` implementation over an in-memory filesystem; it just started empty. Three class-library pieces make it usable: the temp directory pre-created in `InMemoryVirtualFileSystem` (so `createTempFile` works at all), the Java 10 `Reader.transferTo` added to `TReader` (its own `TFiles.readString`/`writeString`/`copy` call it, so those did not even compile), and `TFiles.createDirectories` made idempotent for a one-component path. `file-io` matches; the corpus is **145/145**. Only the two archives need rebuilding (~30 s) |
 | the last-codegen commit | **The dead sibling return.** `try { return } finally { return }` emitted two `i32.const` values in a `(result i32)` function: the try/finally is folded away (correctly — the finally's `return` wins) but the AST kept **two returns**, and the statement emitters walk a list verbatim. The wasm backend now stops at a *directly following* return or throw — only a direct one: dropping statements after a *block* that returns broke `CharsetEncoder.encode`. That took `exceptions-finally` to matching the JDK and the corpus to **144/145** |
 | the listener commit | **The general vtable fix.** Same fault as the one above, one instance further on: `exceptions-stacktrace` and `exception-propagation` read a slot whose implementation (`java.lang.String.equals`) had been dropped, because a call site names the *receiver's* type. `Compiler.java` now reaches the target of every virtual call in every reached method — a method a call site names must exist out of line, since the call may read a vtable slot — which settles as it cascades. Both match JDK 25; the corpus is at 143/145 |
@@ -135,7 +136,7 @@ made by reading code. `FINDINGS.md` §9 records that history so it is not repeat
 
 | | |
 |---|---|
-| Repo | `D:\DevWork\live-codes\java` — `@live-codes/java-wasm@0.0.1`, `files: ["dist"]` |
+| Repo | `D:\DevWork\live-codes\java` — `@live-codes/java-wasm@0.1.0`, `files: ["dist", "LICENSE", "THIRD-PARTY-NOTICES.md"]` |
 | Fork clone | `D:\DevWork\teavm-javac-build` (at `d1514ab`, **modified** — see below) |
 | Compiler dist for local tools | `D:\DevWork\teavm-javac-build\dist\teavm-javac` |
 | JDK 25 | `C:\Program Files\Microsoft\jdk-25.0.4.101-hotspot` (`JAVA_HOME` is **not** set in shells) |
@@ -341,8 +342,8 @@ Wiring design, for when it happens: a shim worker that `importScripts` our `work
 installs its **own** `onmessage`, so the shim must not), translating our `{cmd:'init'|'run'}` protocol
 to LiveCodes' `{code,input}` → `{input,output,error,exitCode}`, with `baseUrl` pointing at the
 package's `dist/` (so `worker-java.js` and `teavm/` both resolve). Decide two options at the same
-time: `persistFiles` (IndexedDB, shared per origin — off means each run starts with an empty
-filesystem) and `platform` (default `'posix'`).
+time: `persistFiles` (off by default; IndexedDB, shared per origin) and `platform` (default
+`'posix'`).
 
 ### What is *not* worth doing
 
@@ -491,10 +492,11 @@ rewritten in minutes.
    `getParent`, `isAbsolute`), but `java.nio.file` builds its own paths and stays POSIX, so `Files`
    directory creation does not follow. Finishing it means normalising paths in `TDefaultPath` too
    (`patches/README.md`, "The platform switch — and its limit").
-4. **Publishing** `@live-codes/java-wasm` (version `0.0.1`, unpublished) — decide the SDK-patch
-   strategy first: we ship build outputs plus vendored classlib classes, not a rewritten third-party
-   binary (FINDINGS §5). All five artifacts are in the repo now, and `assets/` is the source of truth,
-   so the published package is reproducible from a clone with no network.
+4. **Publishing** `@live-codes/java-wasm@0.1.0` — ready: `LICENSE`, `THIRD-PARTY-NOTICES.md`,
+   `types`, `sideEffects` and `prepublishOnly` are in place (commit `a27fe13`), and the tarball is
+   4.26 MB. Remaining: legal sign-off on the GPLv2+CE "corresponding source" wording, then
+   `npm publish --access public`. `assets/` is the source of truth, so the package rebuilds from a
+   clone with no network.
 
 ---
 

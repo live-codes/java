@@ -1,7 +1,15 @@
 {
   "name": "@live-codes/java-wasm",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Client-side Java for LiveCodes: compile and run Java in the browser with javac + TeaVM compiled to WebAssembly.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/live-codes/java.git"
+  },
+  "homepage": "https://github.com/live-codes/java#readme",
+  "bugs": {
+    "url": "https://github.com/live-codes/java/issues"
+  },
   "type": "module",
   "license": "Apache-2.0",
   "main": "dist/java-wasm.iife.js",

@@ -22,6 +22,20 @@ const result = await runtime.run(
 runtime.destroy();
 ```
 
+## Install
+
+```bash
+npm install @live-codes/java-wasm
+```
+
+Or load the bundle directly — it defines the `JavaWasm` global:
+
+```html
+<script src="https://unpkg.com/@live-codes/java-wasm/dist/java-wasm.iife.js"></script>
+```
+
+Source and issue tracker: <https://github.com/live-codes/java>.
+
 ## Measured (headless Chrome, localhost)
 
 | | |
@@ -68,12 +82,20 @@ JavaWasm.createRuntime({
   workerUrl,     // explicit worker script URL override
   teavmBaseUrl,  // TeaVM assets base (compiler.wasm + classlib archives; default <baseUrl>/teavm/)
   onProgress,    // ({ stage, detail }) => void
+  persistFiles,  // keep the filesystem between runs (IndexedDB); default false
+  platform,      // 'posix' (default) or 'windows' — see below
 });
 ```
 
 Returns `{ run(source, { input, mainClass }), on('progress', fn), destroy() }`.
 
 Progress stages are `init` → `compile` → `generate` → `run`.
+
+`persistFiles` is **off by default**: every run starts with an empty in-memory filesystem.
+Enable it to keep a program's files between runs — the snapshot lives in IndexedDB, which is
+shared per origin, so a host that runs several programs on one page should leave it off or key
+its own isolation on top. `platform: 'windows'` switches `java.io.File` separators and
+`isAbsolute()`; the `java.nio.file` layer always resolves POSIX paths.
 
 ## javac SDK bug (upstream fix in `patches/`)
 

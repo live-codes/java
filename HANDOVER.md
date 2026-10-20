@@ -331,15 +331,18 @@ preferred ending for every vendored class (§7 of `FINDINGS.md`).
 
 ### B. Wire LiveCodes (only when the user says the engine is ready)
 
-The exchange rate is explicit: 5 documented regressions, **all** of them codegen or deliberately
-dropped (`file-io`), and every one already written up with a cause. Whether that is acceptable is the
-user's call — the original bar was "zero, or an explicitly documented accepted subset", and this is
-close to the second. Do not touch `D:\DevWork\live-codes\livecodes` before that call (§1).
+The bar is met: **145/145 corpus, 0 regressions** against Doppio, `file-io` included (in-memory
+filesystem with optional IndexedDB persistence). What is left is environment, not correctness —
+verify the browser matrix on Safari, decide whether Doppio stays selectable as a deprecated engine
+(all browsers get ours vs WasmGC-only), and tell users that the filesystem is virtual. Do not touch
+`D:\DevWork\live-codes\livecodes` before that call (§1).
 
 Wiring design, for when it happens: a shim worker that `importScripts` our `worker-java.js` (which
 installs its **own** `onmessage`, so the shim must not), translating our `{cmd:'init'|'run'}` protocol
-to LiveCodes' `{code,input}` → `{input,output,error,exitCode}`, with `baseUrl` pointing at
-`dist/teavm/`.
+to LiveCodes' `{code,input}` → `{input,output,error,exitCode}`, with `baseUrl` pointing at the
+package's `dist/` (so `worker-java.js` and `teavm/` both resolve). Decide two options at the same
+time: `persistFiles` (IndexedDB, shared per origin — off means each run starts with an empty
+filesystem) and `platform` (default `'posix'`).
 
 ### What is *not* worth doing
 

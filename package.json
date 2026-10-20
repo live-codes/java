@@ -3,10 +3,25 @@
   "version": "0.0.1",
   "description": "Client-side Java for LiveCodes: compile and run Java in the browser with javac + TeaVM compiled to WebAssembly.",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "main": "dist/java-wasm.iife.js",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "types": "dist/java-wasm.iife.d.ts",
+  "sideEffects": [
+    "dist/java-wasm.iife.js"
+  ],
+  "keywords": [
+    "java",
+    "javac",
+    "webassembly",
+    "wasm",
+    "teavm",
+    "playground",
+    "livecodes"
   ],
   "scripts": {
     "serve": "node scripts/serve.mjs",
@@ -14,6 +29,7 @@
     "prebuild": "node scripts/fetch-teavm.mjs",
     "build": "node scripts/build.mjs",
     "test": "node scripts/smoke.mjs",
+    "prepublishOnly": "npm run build && npm test",
     "upgrade": "node scripts/upgrade.mjs",
     "upgrade:diff": "node scripts/upgrade.mjs --diff"
   },

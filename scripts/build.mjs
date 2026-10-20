@@ -39,4 +39,7 @@ await build({
 
 await cp(vendorTeavm, root + 'dist/teavm/', { recursive: true });
 
+// Hand written, because esbuild emits no declarations; kept in src/ so it is reviewable.
+await cp(root + 'src/java-wasm.d.ts', root + 'dist/java-wasm.iife.d.ts');
+
 console.log('build complete → dist/');

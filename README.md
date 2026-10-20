@@ -144,5 +144,8 @@ inventory (and `--diff` regenerates the per-file diffs); [`UPGRADING.md`](UPGRAD
 
 ## Licences
 
+- This package: Apache-2.0 (see [`LICENSE`](LICENSE)).
 - TeaVM + teavm-javac (including the `Vsprocessing` fork this builds on): Apache-2.0.
-- The included `javac` comes from OpenJDK: GPLv2 + Classpath Exception.
+- The included `javac` comes from OpenJDK: GPLv2 + Classpath Exception. The notice, the
+  corresponding-source pointers and the full licence text ship in
+  [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
